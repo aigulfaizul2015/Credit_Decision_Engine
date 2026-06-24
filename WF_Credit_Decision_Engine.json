@@ -1,0 +1,3368 @@
+{
+  "name": "WF_Credit_Decision_Engine",
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "5d8a2951-4f4e-4f4b-8b00-cc5dcb0239bb",
+              "leftValue": "={{ $('Валидация').item.json.output.validationPassed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1632,
+        512
+      ],
+      "id": "3aa4951e-6676-4e07-8d37-315501bc746c",
+      "name": "If - корректность данных"
+    },
+    {
+      "parameters": {
+        "jsCode": "const errors = [];\n\nconst inn = ($('Code in JavaScript').first().json.output.inn || \"\");\nconst kpp = ($('Code in JavaScript').first().json.output.kpp || \"\");\nconst loanAmount = ($('Code in JavaScript').first().json.output.loanAmount || \"\");\nconst loanTerm = ($('Code in JavaScript').first().json.output.loanTerm || \"\");\n\nconst requestDate = $('Code in JavaScript').first().json.output.requestDate;\n\nif (!/^\\d{10}$/.test(inn)) {\n  errors.push(\"ИНН должен содержать 10 цифр\");\n}\n\nif (kpp && !/^\\d{9}$/.test(kpp)) {\n  errors.push(\"КПП должен содержать 9 цифр\");\n}\n\nif (loanAmount <= 0) {\n  errors.push(\"Сумма кредита должна быть больше 0\");\n}\n\nif (loanTerm < 1 || loanTerm > 120) {\n  errors.push(\"Срок кредита должен быть от 1 до 120 месяцев\");\n}\n\n\n// Разрешены только цифры\nconst textFields = { inn, kpp, loanTerm, loanAmount };\nconst fieldNames = { inn: \"ИНН\", kpp: \"КПП\", loanTerm: \"Срок кредита\", loanAmount: \"Сумма кредита\" };\n\nfor (const [fieldName, value] of Object.entries(textFields)) {\n    if (value && !/^\\d+$/.test(value)) {\n        errors.push(`Поле \"${fieldNames[fieldName]}\" должно содержать только цифры`);\n    }\n}\n\nconst errorMessage = errors.join(\", \");\nconst applicationId = $('Code in JavaScript').first().json.applicationId;\nconst tool = '02_Input_Validation';\n\nreturn [{\n  json: {\n    applicationId,\n    tool,\n    output: {\n    validationPassed: errors.length === 0,\n\n    inn,\n    kpp,\n    loanAmount,\n    loanTerm,\n    requestDate,\n      \n    errors,\n    errorMessage,\n  }}\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2064,
+        512
+      ],
+      "id": "a8ec0374-7f77-4b59-ad83-93fb05b4e40d",
+      "name": "Валидация"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://suggestions.dadata.ru/suggestions/api/4_1/rs/findById/party",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": []
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $json.output.inn }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -1200,
+        304
+      ],
+      "id": "736ced54-4ab4-432a-bb17-bc1b44daa878",
+      "name": "HTTP Request - запрос dadata по ИНН",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "t7IuhVZ7DRGoAt9v",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.suggestions }}",
+                    "rightValue": 0,
+                    "operator": {
+                      "type": "array",
+                      "operation": "lengthGt",
+                      "rightType": "number"
+                    },
+                    "id": "b00ace91-5842-4cc6-9142-df61baa63ca5"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Компания найдена"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "2589aac7-267a-4038-910c-4298812929f9",
+                    "leftValue": "={{ $json.suggestions }}",
+                    "rightValue": 0,
+                    "operator": {
+                      "type": "array",
+                      "operation": "lengthEquals",
+                      "rightType": "number"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Компания не найдена"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "77414ee2-95ca-45b3-809a-00892f239b6a",
+                    "leftValue": "={{ $json.message }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "empty",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Ошибка API"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -992,
+        416
+      ],
+      "id": "f19b02dd-db1d-4a2b-a00b-59f52d790062",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n    \"applicationId\": \"{{ $('If - корректность данных').item.json.applicationId }}\",\n  \"tool\": \"03_DADATA_API_ERROR\",\n  \"output\": {\n    \"status\": \"error\",\n    \"errorType\": \"DADATA_API_ERROR\",\n    \"errorMessage\": \"{{ $json.output.errorMessage }}\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -768,
+        624
+      ],
+      "id": "b4dad6b2-f365-4658-95a5-25b32cc315ba",
+      "name": "Обработка ошибки Dadata"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n    \"applicationId\": \"{{ $('If - корректность данных').item.json.applicationId }}\",\n  \"tool\":\"03_DADATA_NOT_FOUND\",\n  \"output\": {\n    \"status\":\"error\",\n    \"errorType\":\"DADATA_NOT_FOUND\",\n    \"errorMessage\":\"Организация не найдена в Dadata\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -768,
+        432
+      ],
+      "id": "0c71b5ab-0b25-4e57-9315-5e9d24104e00",
+      "name": "Обработка не найдена орг. Dadata"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n    \"applicationId\": \"{{ $('If - корректность данных').item.json.applicationId }}\",\n    \"tool\": \"03_Company_Profile_Builder\",\n    \"output\": {\n        \"company_profile\": {\n            \"company_name\": \"{{ $json.suggestions[0].value }}\",\n            \"inn\": \"{{ $json.suggestions[0].data.inn }}\",\n            \"kpp\": \"{{ $json.suggestions[0].data.kpp || \"\" }}\",\n            \"ogrn\": \"{{ $json.suggestions[0].data.ogrn || \"\" }}\",\n            \"okved\": \"{{ $json.suggestions[0].data.okved || \"\" }}\",\n            \"director\": \"{{ $json.suggestions[0].data.management.name || \"\" }}\",\n            \"company_status\": \"{{ $json.suggestions[0].data.state.status }}\",\n            \"address\": \"{{ $json.suggestions[0].data.address.value || \"\" }}\",\n            \"requested_loan_amount\": {{ $('If - корректность данных').item.json.output.loanAmount }},\n            \"requested_term\": {{ $('If - корректность данных').item.json.output.loanTerm }},\n            \"okved_type\": \"{{ $json.suggestions[0].data.okved_type || \"\" }}\",\n            \"registration_date\": {{ $json.suggestions[0].data.state.registration_date }},\n            \"address_qc\": \"{{ $json.suggestions[0].data.address.data.qc_geo || \"\" }}\",\n            \"address_qc_complete\": \"{{ $json.suggestions[0].data.address.data.qc_complete || \"\" }}\",\n            \"state_status\": \"{{ $json.suggestions[0].data.state.status || \"\" }}\",\n            \"state_actuality_date\": \"{{ $json.suggestions[0].data.state.actuality_date || \"\" }}\",\n            \"management_name\": \"{{ $json.suggestions[0].data.management.name || \"\" }}\",\n            \"management_post\": \"{{ $json.suggestions[0].data.management.post || \"\" }}\",\n            \"request_date\": \"{{ $('If - корректность данных').item.json.output.requestDate }}\"\n        }\n    }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -768,
+        240
+      ],
+      "id": "3dae7b85-7120-4b72-b970-65176d8316f2",
+      "name": "Company Profile Builder"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "numberInputs": 6,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2944,
+        176
+      ],
+      "id": "a7e1b9f7-e5c5-4d84-9cd2-92197a6d28e4",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\"applicationId\":{{ $('Call \\'WF_Audit_Logger\\'6').item.json.applicationId }},\n\"tool\":\"08_Reputation_Evidence_Aggregation\",\n\"output\":{\n  \"reputation_assessment\": {\n    \"reputation_findings\": {{ $json.reputation_findings }},\n    \"search_confidence\": {{ $json.search_confidence }},\n    \"information_sufficiency\":{{ $json.information_sufficiency }},\n    \"findings\":{{ $json.findings }}\n  }\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2176,
+        1072
+      ],
+      "id": "65479215-8d6f-452c-91b1-d30dbc657674",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"applicationId\": \"{{ $('Decision Explanation').item.json.applicationId }}\",\n  \"tool\": \"11_Credit_Committee_Chairman\",\n\n  \"output\": {\n    \"credit_report\": {\n      \"decision\": \"{{ $json.decision }}\",\n      \"overall_risk\": \"{{ $json.overall_risk }}\",\n      \"risk_score\": {{ $json.risk_score }},\n      \"policy_decision\": \"{{ $json.policy_decision }}\",\n\n      \"policy_rules_triggered\": {{ JSON.stringify($json.policy_rules_triggered || []) }},\n\n      \"strengths\": {{ JSON.stringify($json.strengths || []) }},\n\n      \"risks\": {{ JSON.stringify($json.risks || []) }}\n    },\n\n    \"financial_assessment\": {{ JSON.stringify($('Decision Explanation').item.json.output.financial_assessment || {}) }},\n\n    \"credit_assessment\": {{ JSON.stringify($('Decision Explanation').item.json.output.credit_assessment || {}) }},\n\n    \"company_profile\": {{ JSON.stringify($('Decision Explanation').item.json.output.company_profile || {}) }},\n\n    \"registration_assessment\": {{ JSON.stringify($('Decision Explanation').item.json.output.registration_assessment || {}) }},\n\n    \"compliance_assessment\": {{ JSON.stringify($('Decision Explanation').item.json.output.compliance_assessment || {}) }},\n\n    \"reputation_assessment\": {{ JSON.stringify($('Decision Explanation').item.json.output.reputation_assessment || {}) }},\n\n    \"risk_assessment\": {{ JSON.stringify($('Decision Explanation').item.json.output.risk_assessment || {}) }},\n\n    \"policy_assessment\": {{ JSON.stringify($('Decision Explanation').item.json.output.policy_assessment || {}) }},\n\n    \"decision_explanation\": {{ JSON.stringify($('Decision Explanation').item.json.output.decision_explanation || {}) }}\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4432,
+        240
+      ],
+      "id": "00e2160f-a5c6-4810-8b0b-a909b839fc7f",
+      "name": "Edit Fields3"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => {\n  const p = item.json.output.company_profile;\n\nconst applicationId = $input.first().json.applicationId;\n  const tool = '05_Company_Profile_Normalization_Builder';\n  \n  return {\n    json: {\n      applicationId,\n      tool,\n      output: {\n      company_profile: {\n        company_name: p.company_name ?? null,\n        inn: String(p.inn ?? \"\"),\n        kpp: String(p.kpp ?? \"\"),\n        ogrn: String(p.ogrn ?? \"\"),\n        okved: p.okved ?? \"\",\n        director: p.director ?? \"\",\n        company_status: p.company_status ?? \"\",\n        address: p.address ?? \"\",\n        registration_date: p.registration_date ?? null,\n        company_age_category: p.company_age_category ?? null,\n        request_date: p.request_date ?? null,\n        \n      }}\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16,
+        240
+      ],
+      "id": "4257bd0e-9b04-4c81-8a07-73920a8324c0",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "numberInputs": 8
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1312,
+        1072
+      ],
+      "id": "c2aaab49-bbbc-4223-8df6-b52ecc49f8f1",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1504,
+        1168
+      ],
+      "id": "7634c5b6-98ed-42c8-b8b9-96442f3a4d2b",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0b215cc8-56dc-4b80-a20b-2aec44eda673",
+              "name": "item",
+              "value": "={{ JSON.parse($json.output[0].content[0].text) }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1696,
+        1264
+      ],
+      "id": "f01433b6-3182-4add-a738-ebbccb9283c7",
+      "name": "Edit Fields4"
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {
+              "fieldToAggregate": "output",
+              "renameField": true,
+              "outputFieldName": "findings"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1696,
+        1072
+      ],
+      "id": "b3511e83-27d7-414d-a975-eec6e4da7b8f",
+      "name": "Aggregate"
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = [];\n\nfor (const item of $(\"Code in JavaScript2\").all()) {\n\n  const profile = item.json.output.company_profile || {};\n\n  const findings = [];\n\n  const status = profile.company_status;\n  const director = profile.director;\n  const address = profile.address;\n\n  // ==========================================\n  // ПРОВЕРКА РИСКОВ ПО СТАТУСУ КОМПАНИИ\n  // ==========================================\n\n  if (status === \"LIQUIDATING\") {\n    findings.push(\"LIQUIDATING\"); // Компания находится в процессе ликвидации\n  }\n\n  if (status === \"LIQUIDATED\") {\n    findings.push(\"LIQUIDATED\"); // Компания ликвидирована\n  }\n\n  if (status === \"REORGANIZING\") {\n    findings.push(\"REORGANIZING\"); // Компания находится в процессе реорганизации\n  }\n\n  // ==========================================\n  // ПРОВЕРКА РИСКОВ ПО РЕЕСТРОВЫМ ПРИЗНАКАМ\n  // ==========================================\n\n  if (\n    profile.mass_address === true ||\n    profile.address_flag === \"MASS_ADDRESS\"\n  ) {\n    findings.push(\"MASS_ADDRESS\"); // Адрес относится к массовым адресам регистрации\n  }\n\n  if (\n    profile.mass_director === true ||\n    profile.director_flag === \"MASS_DIRECTOR\"\n  ) {\n    findings.push(\"MASS_DIRECTOR\"); // Руководитель является массовым директором\n  }\n\n  // ==========================================\n  // ПРОВЕРКА ПОЛНОТЫ ИНФОРМАЦИИ\n  // ==========================================\n\n  const missingDirector =\n    !director || director.trim() === \"\";\n\n  const missingAddress =\n    !address || address.trim() === \"\";\n\n  if (missingDirector || missingAddress) {\n    findings.push(\"INVALID_INFORMATION\"); // Отсутствуют обязательные сведения о компании\n  }\n\n  // ==========================================\n  // ПРОВЕРКА ЮРИДИЧЕСКИХ РИСКОВ\n  // ==========================================\n\n  if (profile.bankruptcy_indicator === true) {\n    findings.push(\"BANKRUPTCY_INDICATOR\"); // Выявлены признаки банкротства\n  }\n\n  if (profile.egrul_exclusion_risk === true) {\n    findings.push(\"EGRUL_EXCLUSION_RISK\"); // Есть риск исключения из ЕГРЮЛ\n  }\n\n  // ==========================================\n  // ЕСЛИ НАРУШЕНИЯ НЕ ОБНАРУЖЕНЫ\n  // ==========================================\n\n  if (findings.length === 0) {\n    findings.push(\"NO_COMPLIANCE_ISSUES_FOUND\"); // Комплаенс-риски не выявлены\n  }\n\n  // ==========================================\n  // РАСЧЕТ УРОВНЯ УВЕРЕННОСТИ В ОЦЕНКЕ\n  // ==========================================\n\n  let missingFields = 0;\n\n  if (!status) {\n    missingFields++;\n  }\n\n  if (!director || director.trim() === \"\") {\n    missingFields++;\n  }\n\n  if (!address || address.trim() === \"\") {\n    missingFields++;\n  }\n\n  let confidence;\n\n  if (missingFields === 0) {\n    confidence = \"HIGH\"; // Высокая уверенность: все ключевые данные присутствуют\n  } else if (missingFields === 1) {\n    confidence = \"MEDIUM\"; // Средняя уверенность: отсутствует одно ключевое поле\n  } else {\n    confidence = \"LOW\"; // Низкая уверенность: отсутствует несколько ключевых полей\n  }\n\n  // ==========================================\n  // ФОРМИРОВАНИЕ РЕЗУЛЬТАТА\n  // ==========================================\nconst applicationId = $('Code in JavaScript2').first().json.applicationId;\nconst tool = '06_Compliance_Assessment';\n  \n  results.push({\n    json: {\n      applicationId,\n      tool,\n      output: {\n      compliance_assessment: {\n        compliance_findings: findings,\n        compliance_confidence: confidence\n        }\n      }\n    }\n  });\n\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2368,
+        464
+      ],
+      "id": "bda6e95c-48ee-49e2-a0a8-5be77c901c23",
+      "name": "Compliance"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5.4-mini",
+          "mode": "id"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=Выполни поиск в интернете по компании:\n\nНазвание: {{ $('Code in JavaScript2').item.json.output.company_profile.company_name }}\nИНН: {{ $('Code in JavaScript2').item.json.output.company_profile.inn }}\nОГРН: {{ $('Code in JavaScript2').item.json.output.company_profile.ogrn }}\nРуководитель: {{ $('Code in JavaScript2').item.json.output.company_profile.director }}\nrequest_date: {{ $('Code in JavaScript2').item.json.output.company_profile.request_date }}"
+            },
+            {
+              "role": "system",
+              "content": "Ты — агент анализа репутационных рисков компаний.\nТвоя задача — выявлять и извлекать **только подтверждённые публичные упоминания о мошенничестве или обвинениях в мошенничестве**.\n---\nИсточники данных\nИспользуй только результаты Web Search.\nЗапрещено:\n* додумывать факты\n* интерпретировать вне текста источника\n\n---\nОБЯЗАТЕЛЬНАЯ СТРАТЕГИЯ ПОИСКА\n\nПеред формированием ответа необходимо выполнить расширенный поиск.\n\nМинимум выполнить 12 различных поисковых запросов.\n\nЗапрещено завершать поиск после первого найденного результата.\n\nОбязательно использовать:\n\n1. Поиск по полному названию компании\n\n2. Поиск по названию компании + категории события\n\n3. Поиск по синонимам категории события\n\n4. Поиск по английским и русским формулировкам\n\n5. Поиск по названию компании и названию организации-источника\n(ассоциации, регуляторы, суды, аналитические агентства, СМИ)\n\n6. Поиск по точным фразам из уже найденных цитат\n\nЕсли найден потенциальный факт:\n\n- выполнить минимум 3 дополнительных поисковых запроса для проверки\n- попытаться найти дополнительные независимые источники\n- проверить, не относится ли факт к другой категории\n\nЕсли дата публикации не найдена явно,\nисточник должен быть добавлен с полем date равным request_date как дата публикации).\n\nНе ограничиваться первыми результатами поиска.\nПроверять не менее 20 результатов выдачи по категории.\n---\nЧто считается релевантным (FRAUD)\nФиксируй только случаи, где прямо указано:\n* обвинения в мошенничестве\n* подозрения в мошеннических схемах\n* финансовое мошенничество\n* инвестиционные/финансовые схемы обмана\n* судебные дела по мошенничеству\n* регуляторные расследования мошенничества\n* уголовные дела, связанные с мошенничеством\n---\nСПЕЦИАЛИЗИРОВАННАЯ СТРАТЕГИЯ ПОИСКА\n\nДополнительно выполнять поиск по запросам:\n[company]\n[company] fraud\n[company] fraud allegations\n[company] accused of fraud\n[company] fraud investigation\n[company] financial fraud\n[company] мошенничество\n[company] обвинение в мошенничестве\n[company] уголовное дело мошенничество\n[company] fraud lawsuit\n[company] SEC fraud\n[company] regulator fraud\n\nИскать материалы судов, регуляторов, прокуратуры,\nправоохранительных органов и официальных расследований.\n---\nВременная логика (ВАЖНО)\n* Приоритет: источники за последние 2 года от request_date\n* Старые источники НЕ запрещены\n* Старые источники использовать только если:\n  - событие имеет долгосрочный репутационный эффект\n  - оно повторяется или цитируется в новых публикациях\n  - это крупный исторический медиакризис, влияющий на текущую репутацию\n\n\n---\nПравила извлечения\n* Один факт = один источник\n* Каждое утверждение должно иметь точную цитату\n* Нельзя обобщать несколько источников в один факт\n* Нельзя интерпретировать смысл вне текста\n* Нельзя добавлять предположения\n\n---\nДля каждого найденного источника определить:\ncompany_role \n  ACCUSED,\n  INVESTIGATED,\n  DEFENDANT,\n  CONVICTED,\n  VICTIM,\n  REPORTER,\n  WITNESS,\n  NOT_CLEAR\n\n---\nОценка уверенности\nWEAK:\n* один источник\n* низкая авторитетность или непрямая формулировка\n\n\nMEDIUM:\n* 2 независимых источника или один авторитетный\n\n\nSTRONG:\n* суд, регулятор, государственный орган\n* или множественные крупные СМИ\n\n\n---\nФормат ответа\n### Если найдены данные ВСЕГДА возвращать\n{\n    \"reputation_finding\": \"FRAUD_ALLEGATION_FOUND\",\n    \"evidences\": [\n        {\n            \"source\": \"название источника\",\n            \"quote\": \"точная цитата из источника\",\n            \"date\": \"YYYY-MM-DD\",\n            \"url\": \"https://...\",\n            \"confidence\": \"WEAK | MEDIUM | STRONG\",\n            \"company_role\":\"ACCUSED | INVESTIGATED | DEFENDANT | CONVICTED\"\n        }\n    ]\n}\n—--\n### Если данных нет ВСЕГДА возвращать\n{\n    \"reputation_finding\": \"FRAUD_ALLEGATION_FOUND\",\n    \"evidences\": []\n}\n—---\nОграничения\n* Только JSON\n* Никакого текста вне JSON\n* Никаких догадок\n* Никаких “возможно”, “вероятно”, “похоже”\n* Только прямые подтверждённые формулировки\n—---\nСмысловая модель (ключевая логика)\n* “репутационный факт” = только то, что явно подтверждено источником\n* “обвинение” ≠ “доказанная вина”\n* система фиксирует **факт наличия обвинения**, а не его истинность\n"
+            }
+          ]
+        },
+        "builtInTools": {
+          "webSearch": {
+            "searchContextSize": "medium"
+          }
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        672,
+        384
+      ],
+      "id": "cf951e18-a002-4b34-aa33-b2aed5ecf4b9",
+      "name": "Web Search FRAUD_ALLEGATION_FOUND",
+      "credentials": {
+        "openAiApi": {
+          "id": "Yooz1EvKAw9nsuQQ",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5.4-mini",
+          "mode": "id"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=Выполни поиск в интернете по компании:\n\nНазвание: {{ $('Code in JavaScript2').item.json.output.company_profile.company_name }}\nИНН: {{ $('Code in JavaScript2').item.json.output.company_profile.inn }}\nОГРН: {{ $('Code in JavaScript2').item.json.output.company_profile.ogrn }}\nРуководитель: {{ $('Code in JavaScript2').item.json.output.company_profile.director }}\nrequest_date: {{ $('Code in JavaScript2').item.json.output.company_profile.request_date }}"
+            },
+            {
+              "role": "system",
+              "content": "Ты — агент анализа репутационных рисков компаний.\n\n\nТвоя задача — извлекать ТОЛЬКО подтверждённые публичные репутационные скандалы, где событие ПРЯМО квалифицировано источником как “скандал”.\n\n\n---\nИСТОЧНИКИ ДАННЫХ\nИспользуй ТОЛЬКО результаты Web Search.\nЗАПРЕЩЕНО:\n* додумывать факты\n* интерпретировать вне текста источника\n* определять “масштаб реакции” (например: public outrage, backlash, controversy как скандал)\n\n---\nОБЯЗАТЕЛЬНАЯ СТРАТЕГИЯ ПОИСКА\n\nПеред формированием ответа необходимо выполнить расширенный поиск.\n\nМинимум выполнить 12 различных поисковых запросов.\n\nЗапрещено завершать поиск после первого найденного результата.\n\nОбязательно использовать:\n\n1. Поиск по полному названию компании\n\n2. Поиск по названию компании + категории события\n\n3. Поиск по синонимам категории события\n\n4. Поиск по английским и русским формулировкам\n\n5. Поиск по названию компании и названию организации-источника\n(ассоциации, регуляторы, суды, аналитические агентства, СМИ)\n\n6. Поиск по точным фразам из уже найденных цитат\n\nЕсли найден потенциальный факт:\n\n- выполнить минимум 3 дополнительных поисковых запроса для проверки\n- попытаться найти дополнительные независимые источники\n- проверить, не относится ли факт к другой категории\n\nЕсли дата публикации не найдена явно,\nисточник должен быть добавлен с полем date равным request_date как дата публикации).\n\nНе ограничиваться первыми результатами поиска.\nПроверять не менее 20 результатов выдачи по категории.\n---\nЧТО СЧИТАЕТСЯ REPUTATIONAL_SCANDAL\nФиксируй только случаи, где источник прямо использует КВАЛИФИКАЦИЮ СКАНДАЛА:\n* scandal / скандал\n* major scandal / крупный скандал\n* corporate scandal / корпоративный скандал\n* political/business scandal (если прямо назван скандалом в источнике)\n\n\nВАЖНО:\n- единственный допустимый триггер — ЯВНОЕ слово “scandal”\n- наличие негатива, конфликта или общественной реакции НЕ достаточно\n- “controversy”, “backlash”, “criticism”, “outrage” НЕ считаются скандалом\n\n---\nСПЕЦИАЛИЗИРОВАННАЯ СТРАТЕГИЯ ПОИСКА\nОбязательно выполнять поиск по словам:\nscandal\ncorporate scandal\nbusiness scandal\nmajor scandal\nскандал\nкрупный скандал\nкорпоративный скандал\n\nЕсли слово scandal не найдено,\nдополнительный поиск не прекращать до проверки минимум 12 запросов.\n\n---\nНЕ СЧИТАТЬ:\n* controversy (само по себе)\n* public outrage / backlash / criticism (как бы ни был сильный)\n* негативные медиа-материалы без слова “scandal”\n* судебные дела\n* обвинения любого типа\n* расследования\n* кризисы репутации без квалификации “scandal”\n\n\n---\nВРЕМЕННАЯ ЛОГИКА\n* Приоритет: источники за последние 2 года от request_date\n* Старые источники НЕ запрещены\n* Старые источники использовать только если:\n  - источник прямо называет событие “scandal”\n  - событие имеет долгосрочный публичный эффект\n  - оно цитируется в новых публикациях как “scandal”\n\n\n---\nПРАВИЛА ИЗВЛЕЧЕНИЯ\n* Один факт = один источник\n* Каждое утверждение должно содержать точную цитату\n* Запрещено объединять источники\n* Запрещено интерпретировать масштаб события\n* Запрещено усиливать формулировки источника\n\n\n---\nОЦЕНКА УВЕРЕННОСТИ\nWEAK:\n* один источник\n* локальное или нишевое СМИ\n* формулировка “scandal” без деталей\n\n\nMEDIUM:\n* 2 независимых источника\n* или один крупный авторитетный медиаресурс\n\n\nSTRONG:\n* множественные крупные СМИ\n* или официально признанный публичный скандал с широким международным освещением\n---\nФОРМАТ ОТВЕТА\n### Если найдены данные ВСЕГДА возвращать\n{\n    \"reputation_finding\": \"REPUTATIONAL_SCANDAL_FOUND\",\n    \"evidences\": [\n        {\n            \"source\": \"название источника\",\n            \"quote\": \"точная цитата из источника\",\n            \"date\": \"YYYY-MM-DD\",\n            \"url\": \"https://...\",\n            \"confidence\": \"WEAK | MEDIUM | STRONG\"\n        }\n    ]\n}\n---\n### Если данных нет ВСЕГДА возвращать\n{\n    \"reputation_finding\": \"REPUTATIONAL_SCANDAL_FOUND\",\n    \"evidences\": []\n}\n---\nОГРАНИЧЕНИЯ\n* Только JSON\n* Никакого текста вне JSON\n* Использовать только search_results\n* Никаких предположений\n* Никаких интерпретаций вне источника\n* Только прямые цитаты\n\n\n---\nСМЫСЛОВАЯ МОДЕЛЬ\nREPUTATIONAL_SCANDAL = ТОЛЬКО событие, прямо названное “scandal” в источнике\nНЕ РАВНО:\n* controversy\n* outrage\n* backlash\n* criticism\n* crisis\n\n\nЕсли нет слова “scandal” → событие НЕ существует в данной категории\n"
+            }
+          ]
+        },
+        "builtInTools": {
+          "webSearch": {
+            "searchContextSize": "medium"
+          }
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        672,
+        576
+      ],
+      "id": "9475fb9f-7fa1-42e7-a3d7-fe4f0bd2d533",
+      "name": "Web Search REPUTATIONAL_SCANDAL",
+      "credentials": {
+        "openAiApi": {
+          "id": "Yooz1EvKAw9nsuQQ",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5.4-mini",
+          "mode": "id"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=Выполни поиск в интернете по компании:\n\nНазвание: {{ $('Code in JavaScript2').item.json.output.company_profile.company_name }}\nИНН: {{ $('Code in JavaScript2').item.json.output.company_profile.inn }}\nОГРН: {{ $('Code in JavaScript2').item.json.output.company_profile.ogrn }}\nРуководитель: {{ $('Code in JavaScript2').item.json.output.company_profile.director }}\nrequest_date: {{ $('Code in JavaScript2').item.json.output.company_profile.request_date }}"
+            },
+            {
+              "role": "system",
+              "content": "Ты — агент анализа репутационных рисков компаний.\n\nТвоя задача — извлекать ТОЛЬКО подтверждённые негативные упоминания компании в медиа, где негатив прямо выражен в тексте источника.\n\n---\nИСТОЧНИКИ ДАННЫХ\nИспользуй ТОЛЬКО результаты Web Search.\nЗАПРЕЩЕНО:\n* использовать внешние знания\n* додумывать факты\n* интерпретировать тональность вне текста источника\n* превращать нейтральные факты в негатив\n* агрегировать несколько источников в один вывод\n\n---\nОБЯЗАТЕЛЬНАЯ СТРАТЕГИЯ ПОИСКА\n\nПеред формированием ответа необходимо выполнить расширенный поиск.\n\nМинимум выполнить 12 различных поисковых запросов.\n\nЗапрещено завершать поиск после первого найденного результата.\n\nОбязательно использовать:\n\n1. Поиск по полному названию компании\n\n2. Поиск по названию компании + категории события\n\n3. Поиск по синонимам категории события\n\n4. Поиск по английским и русским формулировкам\n\n5. Поиск по названию компании и названию организации-источника\n(ассоциации, регуляторы, суды, аналитические агентства, СМИ)\n\n6. Поиск по точным фразам из уже найденных цитат\n\nЕсли найден потенциальный факт:\n\n- выполнить минимум 3 дополнительных поисковых запроса для проверки\n- попытаться найти дополнительные независимые источники\n- проверить, не относится ли факт к другой категории\n\nЕсли дата публикации не найдена явно,\nисточник должен быть добавлен с полем date равным request_date как дата публикации).\n\nНе ограничиваться первыми результатами поиска.\nПроверять не менее 20 результатов выдачи по категории.\n---\nЧТО СЧИТАЕТСЯ NEGATIVE_MEDIA_COVERAGE\nФиксируй только случаи, где источник прямо содержит негативное освещение компании, включая:\n* критические новостные публикации о компании\n* журналистские расследования с негативной оценкой (без квалификации как scandal/fraud)\n* сообщения о сбоях, кризисах, инцидентах с негативной интерпретацией в СМИ\n* падение доверия, репутационные проблемы, зафиксированные СМИ (только если прямо указано)\n* негативные оценки деятельности компании в авторитетных медиа\n* сообщения о проблемах с продуктом/услугами, описанные как негативные новости\n\nВАЖНО:\n- негатив должен быть явно выражен в источнике\n- допускается только медийная интерпретация, а не модельная\n\n---\nСПЕЦИАЛИЗИРОВАННАЯ СТРАТЕГИЯ ПОИСКА\nДополнительно искать:\n\ncriticism\ncriticized\nnegative coverage\nnegative publicity\nreputation issues\nconcerns\nproblems\ncrisis\nfailure\ncomplaints\n\nкритика\nнегативное освещение\nрепутационные проблемы\nжалобы\nкризис\nпроблемы\n\nИскать преимущественно независимые СМИ.\nНе ограничиваться пресс-релизами компании.\n\n---\nНЕ СЧИТАТЬ:\n* FRAUD_ALLEGATION (обвинения в мошенничестве)\n* PUBLIC_LITIGATION (судебные дела)\n* REPUTATIONAL_SCANDAL (если источник называет это скандалом)\n* PUBLIC_ACCUSATION (обвинения)\n* PR-материалы и пресс-релизы\n* пользовательские отзывы и форумы\n* нейтральные новости без оценки\n* рейтинги и списки без явного негативного контекста\n* любые “репутационные оценки” без прямой медийной формулировки\n\nКРИТИЧЕСКОЕ ПРАВИЛО \nНЕ СЧИТАТЬ негативом:\n- “company faced challenges”\n- “concerns were raised”\n- “report mentions issues”\n\nЕСЛИ НЕТ ЯВНОЙ НЕГАТИВНОЙ ОЦЕНКИ В МЕДИА → IGNORE\n\n---\nВРЕМЕННАЯ ЛОГИКА\n* Приоритет: источники за последние 2 года от request_date\n* Старые источники НЕ запрещены\n* Старые источники использовать только если:\n  - событие имеет долгосрочный негативный эффект\n  - оно повторяется в новых медиа-публикациях\n  - оно остаётся актуальной проблемой компании\n\n---\nПРАВИЛА ИЗВЛЕЧЕНИЯ\n* Один факт = один источник\n* Каждое утверждение должно иметь точную цитату\n* Запрещено объединять источники\n* Запрещено интерпретировать тональность вне источника\n* Запрещено усиливать негатив (“issue” ≠ “crisis”)\n* Запрещено извлекать сигнал без явной негативной формулировки\n\n---\nОЦЕНКА УВЕРЕННОСТИ\nWEAK:\n* один источник\n* локальное или нишевое медиа\n* слабая негативная формулировка (soft criticism)\n\nMEDIUM:\n* 2 независимых источника\n* или один крупный авторитетный медиа-источник\n\nSTRONG:\n* множественные крупные СМИ\n* или официально подтверждённый кризис/инцидент с широким освещением\n\n---\nФОРМАТ ОТВЕТА\n### Если найдены данные ВСЕГДА возвращать\n{\n    \"reputation_finding\": \"NEGATIVE_MEDIA_COVERAGE\",\n    \"evidences\": [\n        {\n            \"source\": \"название источника\",\n            \"quote\": \"точная цитата из источника\",\n            \"date\": \"YYYY-MM-DD\",\n            \"url\": \"https://...\",\n            \"confidence\": \"WEAK | MEDIUM | STRONG\"\n        }\n    ]\n}\n---\n### Если данных нет ВСЕГДА возвращать\n{\n    \"reputation_finding\": \"NEGATIVE_MEDIA_COVERAGE\",\n    \"evidences\": []\n}\n---\nСМЫСЛОВАЯ МОДЕЛЬ\nNEGATIVE_MEDIA_COVERAGE = только явно выраженное негативное освещение в СМИ\nНЕ РАВНО:\n* общая критика без оценки\n* упоминание проблем без негативного контекста\n* нейтральные факты\n* юридические обвинения\n* скандалы (это отдельный сигнал)\n* обвинения (это отдельный сигнал)\n\n---\nСИСТЕМНАЯ ГРАНИЦА\nЭтот сигнал фиксирует только:\n→ media-framed negative evaluation\n\nи НЕ включает:\n→ legal domain\n→ accusation domain\n→ scandal domain\n"
+            }
+          ]
+        },
+        "builtInTools": {
+          "webSearch": {
+            "searchContextSize": "medium"
+          }
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        672,
+        768
+      ],
+      "id": "fdce2169-d5a1-47aa-a51b-4c9dcbd63e89",
+      "name": "Web Search NEGATIVE_MEDIA_COVERAGE",
+      "credentials": {
+        "openAiApi": {
+          "id": "Yooz1EvKAw9nsuQQ",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5.4-mini",
+          "mode": "id"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=Выполни поиск в интернете по компании:\n\nНазвание: {{ $('Code in JavaScript2').item.json.output.company_profile.company_name }}\nИНН: {{ $('Code in JavaScript2').item.json.output.company_profile.inn }}\nОГРН: {{ $('Code in JavaScript2').item.json.output.company_profile.ogrn }}\nРуководитель: {{ $('Code in JavaScript2').item.json.output.company_profile.director }}\nrequest_date: {{ $('Code in JavaScript2').item.json.output.company_profile.request_date }}"
+            },
+            {
+              "role": "system",
+              "content": "Ты — агент анализа репутационных рисков компаний.\n\nТвоя задача — извлекать ТОЛЬКО подтверждённые публичные упоминания судебных процессов, исков и юридических разбирательств, связанных с компанией.\n\n---\nИСТОЧНИКИ ДАННЫХ\nИспользуй ТОЛЬКО результаты Web Search.\nЗАПРЕЩЕНО:\n* додумывать факты\n* интерпретировать вне текста источника\n* квалифицировать дело без явного указания в источнике\n\n---\nОБЯЗАТЕЛЬНАЯ СТРАТЕГИЯ ПОИСКА\n\nПеред формированием ответа необходимо выполнить расширенный поиск.\n\nМинимум выполнить 12 различных поисковых запросов.\n\nЗапрещено завершать поиск после первого найденного результата.\n\nОбязательно использовать:\n\n1. Поиск по полному названию компании\n\n2. Поиск по названию компании + категории события\n\n3. Поиск по синонимам категории события\n\n4. Поиск по английским и русским формулировкам\n\n5. Поиск по названию компании и названию организации-источника\n(ассоциации, регуляторы, суды, аналитические агентства, СМИ)\n\n6. Поиск по точным фразам из уже найденных цитат\n\nЕсли найден потенциальный факт:\n\n- выполнить минимум 3 дополнительных поисковых запроса для проверки\n- попытаться найти дополнительные независимые источники\n- проверить, не относится ли факт к другой категории\n\nЕсли дата публикации не найдена явно,\nисточник должен быть добавлен с полем date равным request_date как дата публикации).\n\nНе ограничиваться первыми результатами поиска.\nПроверять не менее 20 результатов выдачи по категории.\n---\nЧТО СЧИТАЕТСЯ PUBLIC_LITIGATION\nФиксируй только случаи, где источник прямо сообщает о СУДЕБНОМ ИЛИ ОФИЦИАЛЬНО ЮРИДИЧЕСКОМ ПРОЦЕССЕ:\n* поданный судебный иск (lawsuit filed / filed a claim / подан иск)\n* открытое судебное дело (court case / proceeding)\n* коллективный иск (class action lawsuit)\n* гражданское / арбитражное разбирательство\n* уголовное дело, рассматриваемое в суде\n* официальное судебное производство с участием компании\n* апелляционные и продолжающиеся судебные процессы\n\nВАЖНО:\n- должен быть явный факт существования судебного процесса\n- достаточно факта иска или дела, но НЕ интерпретаций\n\n---\nСПЕЦИАЛИЗИРОВАННАЯ СТРАТЕГИЯ ПОИСКА\n\nДополнительные поисковые запросы:\n\nlawsuit\ncourt case\nlitigation\ncourt filing\narbitration\nclaim filed\nlegal action\n\nиск\nсуд\nарбитраж\nсудебное дело\nразбирательство\nапелляция\n\nПроверять специализированные юридические и судебные источники.\n---\nНЕ СЧИТАТЬ:\n* любые “accused of” без указания суда\n* allegations / обвинения / claims (если нет суда)\n* wrongdoing claims (всегда НЕ считать)\n* медиа-расследования без судебного процесса\n* регуляторные проверки без суда\n* новости о “potential lawsuit” / “may sue”\n* скандалы и медиа-истории (это другие сигналы)\n\nКЛЮЧЕВОЕ ПРАВИЛО РАЗДЕЛЕНИЯ (ВАЖНО)\nЕсли нет явного судебного процесса:\n→ ЭТО НЕ PUBLIC_LITIGATION\n\n---\nВРЕМЕННАЯ ЛОГИКА\n* Приоритет: источники за последние 2 года от request_date\n* Старые источники НЕ запрещены\n* Старые источники использовать только если:\n  - дело является продолжающимся (ongoing litigation)\n  - оно имеет долгосрочные последствия\n  - оно повторно упоминается в новых судебных или медиа-материалах\n\n---\nПРАВИЛА ИЗВЛЕЧЕНИЯ\n* Один факт = один источник\n* Каждое утверждение должно содержать точную цитату\n* Запрещено объединять несколько источников в один кейс\n* Запрещено интерпретировать юридический статус вне текста источника\n* Запрещено “достраивать” стадию дела\n\n---\nОЦЕНКА УВЕРЕННОСТИ\n\nWEAK:\n* один источник\n* локальное или нишевое медиа\n* неясный юридический статус (mention of lawsuit without detail)\n\nMEDIUM:\n* 2 независимых источника\n* или один крупный юридический/медиа-источник\n\nSTRONG:\n* официальные судебные документы\n* государственные регуляторы\n* или множественные крупные СМИ с подтверждением дела\n\n---\nФОРМАТ ОТВЕТА\n### Если найдены данные\n{\n    \"reputation_finding\": \"PUBLIC_LITIGATION_MENTIONED\",\n    \"evidences\": [\n        {\n            \"source\": \"название источника\",\n            \"quote\": \"точная цитата из источника\",\n            \"date\": \"YYYY-MM-DD\",\n            \"url\": \"https://...\",\n            \"confidence\": \"WEAK | MEDIUM | STRONG\"\n        }\n    ]\n}\n---\n### Если данных нет\n{\n    \"reputation_finding\": \"PUBLIC_LITIGATION_MENTIONED\",\n    \"evidences\": []\n}\n---\nОГРАНИЧЕНИЯ\n* Только JSON\n* Никакого текста вне JSON\n* Никаких предположений\n* Никаких интерпретаций юридического статуса вне источника\n* Только прямые цитаты\n\n---\nСМЫСЛОВАЯ МОДЕЛЬ\nPUBLIC_LITIGATION = только факт существования суда или официального судебного процесса\nНЕ РАВНО:\n* обвинения\n* расследования\n* регуляторные проверки\n* медиа-утверждения\n* заявления о возможных исках\n\nСистема фиксирует только юридически подтверждённый факт судебного разбирательства\n"
+            }
+          ]
+        },
+        "builtInTools": {
+          "webSearch": {
+            "searchContextSize": "medium"
+          }
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        672,
+        960
+      ],
+      "id": "ccc76c91-73d5-4c68-8941-d58531180a4c",
+      "name": "Web Search PUBLIC_LITIGATION",
+      "credentials": {
+        "openAiApi": {
+          "id": "Yooz1EvKAw9nsuQQ",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5.4-mini",
+          "mode": "id"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=Выполни поиск в интернете по компании:\n\nНазвание: {{ $('Code in JavaScript2').item.json.output.company_profile.company_name }}\nИНН: {{ $('Code in JavaScript2').item.json.output.company_profile.inn }}\nОГРН: {{ $('Code in JavaScript2').item.json.output.company_profile.ogrn }}\nРуководитель: {{ $('Code in JavaScript2').item.json.output.company_profile.director }}\nrequest_date: {{ $('Code in JavaScript2').item.json.output.company_profile.request_date }}"
+            },
+            {
+              "role": "system",
+              "content": "Ты — агент анализа репутационных рисков компаний.\n\nТвоя задача — извлекать ТОЛЬКО подтверждённые публичные обвинения, выдвинутые в адрес компании, независимо от их юридического статуса.\n\n---\nИСТОЧНИКИ ДАННЫХ\nИспользуй ТОЛЬКО результаты Web Search.\nЗАПРЕЩЕНО:\n* додумывать факты\n* интерпретировать вне текста источника\n* усиливать формулировки источника\n* превращать мнение в обвинение\n\n---\nОБЯЗАТЕЛЬНАЯ СТРАТЕГИЯ ПОИСКА\n\nПеред формированием ответа необходимо выполнить расширенный поиск.\n\nМинимум выполнить 12 различных поисковых запросов.\n\nЗапрещено завершать поиск после первого найденного результата.\n\nОбязательно использовать:\n\n1. Поиск по полному названию компании\n\n2. Поиск по названию компании + категории события\n\n3. Поиск по синонимам категории события\n\n4. Поиск по английским и русским формулировкам\n\n5. Поиск по названию компании и названию организации-источника\n(ассоциации, регуляторы, суды, аналитические агентства, СМИ)\n\n6. Поиск по точным фразам из уже найденных цитат\n\nЕсли найден потенциальный факт:\n\n- выполнить минимум 3 дополнительных поисковых запроса для проверки\n- попытаться найти дополнительные независимые источники\n- проверить, не относится ли факт к другой категории\n\nЕсли дата публикации не найдена явно,\nисточник должен быть добавлен с полем date равным request_date как дата публикации).\n\nНе ограничиваться первыми результатами поиска.\nПроверять не менее 20 результатов выдачи по категории.\n---\nЧТО СЧИТАЕТСЯ PUBLIC_ACCUSATION\nФиксируй только случаи, где источник прямо сообщает о позитивном освещении компании в НОВОСТНОМ или РЕДАКЦИОННО-ЖУРНАЛИСТСКОМ контексте:\n* позитивные новости в независимых СМИ (news reporting)\n* журналистские статьи с положительной оценкой компании\n* репортажи о достижениях, росте, расширении, результатах\n* аналитические статьи СМИ с позитивной оценкой деятельности компании\n* упоминания успехов компании в деловых/новостных изданиях\n\nВАЖНО:\n- должен быть именно информационный или новостной контекст\n- должна быть внешняя редакционная обработка (journalistic framing)\n- PR-релизы НЕ считаются, если не переработаны независимым СМИ\n\n---\nСПЕЦИАЛИЗИРОВАННАЯ СТРАТЕГИЯ ПОИСКА\n\nДополнительно искать:\naccused\naccusation\nalleged\nallegation\nclaimed wrongdoing\nblamed\n\nобвинили\nобвинение\nобвиняют\nобвиняется\nутверждают нарушения\n---\nНЕ СЧИТАТЬ:\n* OPINION PIECES / колонки мнений / авторские блоги\n* обзоры-«review» без новостного контекста\n* рекламные и PR-материалы компании\n* пользовательские отзывы и рейтинги\n* нейтральные новости без позитивной оценки\n* награды (это INDUSTRY_AWARD_FOUND)\n* “positive review” без медийной новостной рамки\n* маркетинговые статьи “sponsored content”\n\n---\nВРЕМЕННАЯ ЛОГИКА\n* Приоритет: источники за последние 2 года от request_date\n* Старые источники НЕ запрещены\n* Старые источники использовать только если:\n  - обвинение имеет долгосрочные последствия\n  - оно повторяется в новых публикациях\n  - оно остаётся актуальным публичным кейсом\n\n---\nПРАВИЛА ИЗВЛЕЧЕНИЯ\n* Один факт = один источник\n* Каждое утверждение должно содержать точную цитату\n* Запрещено объединять источники в один кейс\n* Запрещено интерпретировать смысл вне текста\n* Запрещено усиливать формулировки (claim ≠ accusation unless explicitly stated)\n\n---\nОЦЕНКА УВЕРЕННОСТИ\nWEAK:\n* один источник\n* косвенные или слабые формулировки обвинения\n* нишевые медиа\n\nMEDIUM:\n* 2 независимых источника\n* или один крупный авторитетный источник\n\nSTRONG:\n* официальные обвинения регуляторов\n* или множественные крупные СМИ\n* или подтверждённые публичные обвинения от госорганов / судов\n\n---\nФОРМАТ ОТВЕТА\n### Если найдены данные\n{\n    \"reputation_finding\": \"PUBLIC_ACCUSATION_FOUND\",\n    \"evidences\": [\n        {\n            \"source\": \"название источника\",\n            \"quote\": \"точная цитата из источника\",\n            \"date\": \"YYYY-MM-DD\",\n            \"url\": \"https://...\",\n            \"confidence\": \"WEAK | MEDIUM | STRONG\"\n        }\n    ]\n}\n---\n### Если данных нет\n{\n    \"reputation_finding\": \"PUBLIC_ACCUSATION_FOUND\",\n    \"evidences\": []\n}\n---\nОГРАНИЧЕНИЯ\n* Только JSON\n* Никакого текста вне JSON\n* Никаких предположений\n* Никаких интерпретаций вне источника\n* Только прямые цитаты\n\n---\nСМЫСЛОВАЯ МОДЕЛЬ\nPOSITIVE_MEDIA_COVERAGE = только новостное/журналистское позитивное освещение компании\nНЕ РАВНО:\n* opinion piece / мнение автора\n* PR / sponsored content\n* review-сайты\n* маркетинговые публикации\n\nСистема фиксирует только факт позитивного журналистского освещения, а не субъективную оценку или пользовательское мнение\n"
+            }
+          ]
+        },
+        "builtInTools": {
+          "webSearch": {
+            "searchContextSize": "medium"
+          }
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        672,
+        1152
+      ],
+      "id": "b58e0404-92c3-4baf-87d6-131da084941e",
+      "name": "Web Search POSITIVE_MEDIA_COVERAGE",
+      "credentials": {
+        "openAiApi": {
+          "id": "Yooz1EvKAw9nsuQQ",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5.4-mini",
+          "mode": "id"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=Выполни поиск в интернете по компании:\n\nНазвание: {{ $('Code in JavaScript2').item.json.output.company_profile.company_name }}\nИНН: {{ $('Code in JavaScript2').item.json.output.company_profile.inn }}\nОГРН: {{ $('Code in JavaScript2').item.json.output.company_profile.ogrn }}\nРуководитель: {{ $('Code in JavaScript2').item.json.output.company_profile.director }}\nrequest_date: {{ $('Code in JavaScript2').item.json.output.company_profile.request_date }}"
+            },
+            {
+              "role": "system",
+              "content": "Ты — агент анализа репутационных рисков компаний.\n\nТвоя задача — извлекать ТОЛЬКО подтверждённые публичные позитивные упоминания компании в медиа.\n\n---\nИСТОЧНИКИ ДАННЫХ\nИспользуй ТОЛЬКО результаты Web Search.\nЗАПРЕЩЕНО:\n* додумывать факты\n* интерпретировать вне текста источника\n* превращать PR-материалы в “медиа-достижения” без независимого подтверждения\n\n---\nОБЯЗАТЕЛЬНАЯ СТРАТЕГИЯ ПОИСКА\n\nПеред формированием ответа необходимо выполнить расширенный поиск.\n\nМинимум выполнить 12 различных поисковых запросов.\n\nЗапрещено завершать поиск после первого найденного результата.\n\nОбязательно использовать:\n\n1. Поиск по полному названию компании\n\n2. Поиск по названию компании + категории события\n\n3. Поиск по синонимам категории события\n\n4. Поиск по английским и русским формулировкам\n\n5. Поиск по названию компании и названию организации-источника\n(ассоциации, регуляторы, суды, аналитические агентства, СМИ)\n\n6. Поиск по точным фразам из уже найденных цитат\n\nЕсли найден потенциальный факт:\n\n- выполнить минимум 3 дополнительных поисковых запроса для проверки\n- попытаться найти дополнительные независимые источники\n- проверить, не относится ли факт к другой категории\n\nЕсли дата публикации не найдена явно,\nисточник должен быть добавлен с полем date равным request_date как дата публикации).\n\nНе ограничиваться первыми результатами поиска.\nПроверять не менее 20 результатов выдачи по категории.\n---\nЧТО СЧИТАЕТСЯ POSITIVE_MEDIA_COVERAGE\nФиксируй только случаи, где источник прямо сообщает о позитивном освещении компании, включая:\n* положительные новости в авторитетных СМИ\n* благоприятные журналистские публикации о компании\n* позитивные обзоры деятельности компании в медиа\n* сообщения о росте, успехе, расширении, результатах (если подано как новость)\n* упоминания о сильной репутации или доверии в медиа\n* позитивные отраслевые статьи с оценкой компании\n\nВАЖНО:\n- должен быть именно медийный контекст\n- PR-релизы сами по себе НЕ считаются, если не перепубликованы независимым СМИ\n\n---\nСПЕЦИАЛИЗИРОВАННАЯ СТРАТЕГИЯ ПОИСКА\nДополнительные поисковые запросы:\n\npositive coverage\nsuccessful\ngrowth\nexpansion\nachievement\nstrong performance\nindustry praise\n\nуспех\nрост\nрасширение\nдостижение\nпозитивное освещение\nположительная оценка\n\nИскать независимые СМИ отдельно от корпоративных публикаций.\n---\nНЕ СЧИТАТЬ:\n* рекламные или PR-материалы компании\n* пользовательские отзывы\n* нейтральные новости без оценки\n* негативные новости (NEGATIVE_MEDIA_COVERAGE)\n* награды без медийного освещения (это INDUSTRY_AWARD_FOUND в другой системе)\n\n---\nВРЕМЕННАЯ ЛОГИКА\n* Приоритет: источники за последние 2 года от request_date\n* Старые источники НЕ запрещены\n* Старые источники использовать только если:\n  - компания стабильно упоминается в позитивном ключе\n  - событие имеет долгосрочный позитивный эффект\n  - это знаковое достижение, цитируемое в новых медиа\n\n---\nПРАВИЛА ИЗВЛЕЧЕНИЯ\n* Один факт = один источник\n* Каждое утверждение должно содержать точную цитату\n* Запрещено объединять источники\n* Запрещено интерпретировать смысл вне источника\n* Запрещено превращать PR-текст в медиа-факт\n* Запрещено усиливать формулировки (e.g. “successful” ≠ “major success” без явного указания)\n\n---\nОЦЕНКА УВЕРЕННОСТИ\nWEAK:\n* один источник\n* нишевое медиа или локальная публикация\n* косвенно позитивная формулировка\n\nMEDIUM:\n* 2 независимых источника\n* или один крупный авторитетный медиаресурс\n\nSTRONG:\n* множественные крупные СМИ\n* или официально подтверждённый успех, освещённый в ведущих медиа\n* или государственные / отраслевые подтверждения + медиа\n\n---\nФОРМАТ ОТВЕТА\n### Если найдены данные\n{\n    \"reputation_finding\": \"POSITIVE_MEDIA_COVERAGE\",\n    \"evidences\": [\n        {\n            \"source\": \"название источника\",\n            \"quote\": \"точная цитата из источника\",\n            \"date\": \"YYYY-MM-DD\",\n            \"url\": \"https://...\",\n            \"confidence\": \"WEAK | MEDIUM | STRONG\"\n        }\n    ]\n}\n---\n### Если данных нет\n{\n    \"reputation_finding\": \"POSITIVE_MEDIA_COVERAGE\",\n    \"evidences\": []\n}\n---\nОГРАНИЧЕНИЯ\n* Только JSON\n* Никакого текста вне JSON\n* Никаких предположений\n* Никаких интерпретаций вне источника\n* Только прямые цитаты\n\n---\nСМЫСЛОВАЯ МОДЕЛЬ\nPOSITIVE_MEDIA_COVERAGE = только позитивное медийное освещение, подтверждённое внешними СМИ\nНЕ РАВНО:\n* PR-релиз\n* реклама\n* внутренние заявления компании\n\nСистема фиксирует только факт внешнего позитивного освещения, а не маркетинговую активность компании\n"
+            }
+          ]
+        },
+        "builtInTools": {
+          "webSearch": {
+            "searchContextSize": "medium"
+          }
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        672,
+        1344
+      ],
+      "id": "074f7bfb-2501-459b-bba6-5fdd9bc001d9",
+      "name": "Web Search POSITIVE_MEDIA_COVERAGE1",
+      "credentials": {
+        "openAiApi": {
+          "id": "Yooz1EvKAw9nsuQQ",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5.4-mini",
+          "mode": "id"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=Выполни поиск в интернете по компании:\n\nНазвание: {{ $('Code in JavaScript2').item.json.output.company_profile.company_name }}\nИНН: {{ $('Code in JavaScript2').item.json.output.company_profile.inn }}\nОГРН: {{ $('Code in JavaScript2').item.json.output.company_profile.ogrn }}\nРуководитель: {{ $('Code in JavaScript2').item.json.output.company_profile.director }}\nrequest_date: {{ $('Code in JavaScript2').item.json.output.company_profile.request_date }}"
+            },
+            {
+              "role": "system",
+              "content": "Ты — агент анализа репутационных рисков компаний.\n\nТвоя задача — извлекать ТОЛЬКО подтверждённые публичные упоминания отраслевых наград, полученных компанией.\n\n---\nИСТОЧНИКИ ДАННЫХ\nИспользуй ТОЛЬКО результаты Web Search.\nЗАПРЕЩЕНО:\n* додумывать факты\n* интерпретировать вне текста источника\n* превращать упоминания в награды без явного подтверждения\n\n---\nОБЯЗАТЕЛЬНАЯ СТРАТЕГИЯ ПОИСКА\n\nПеред формированием ответа необходимо выполнить расширенный поиск.\n\nМинимум выполнить 12 различных поисковых запросов.\n\nЗапрещено завершать поиск после первого найденного результата.\n\nОбязательно использовать:\n\n1. Поиск по полному названию компании\n\n2. Поиск по названию компании + категории события\n\n3. Поиск по синонимам категории события\n\n4. Поиск по английским и русским формулировкам\n\n5. Поиск по названию компании и названию организации-источника\n(ассоциации, регуляторы, суды, аналитические агентства, СМИ)\n\n6. Поиск по точным фразам из уже найденных цитат\n\nЕсли найден потенциальный факт:\n\n- выполнить минимум 3 дополнительных поисковых запроса для проверки\n- попытаться найти дополнительные независимые источники\n- проверить, не относится ли факт к другой категории\n\nЕсли дата публикации не найдена явно,\nисточник должен быть добавлен с полем date равным request_date как дата публикации).\n\nНе ограничиваться первыми результатами поиска.\nПроверять не менее 20 результатов выдачи по категории.\n---\nЧТО СЧИТАЕТСЯ INDUSTRY_AWARD\n\nФиксируй только случаи, где источник прямо подтверждает получение награды (award received), включая:\n\n### 1. Формальные отраслевые награды\n* industry awards\n* business excellence awards\n* innovation / technology awards\n* sector-specific awards\n\n### 2. Официальные церемонии награждения\n* “received the award”\n* “was awarded”\n* “won the award”\n* “recipient of award”\n\n### 3. Признанные премии от организаций\n* профессиональные ассоциации\n* международные или национальные award bodies\n* отраслевые конкурсы с победителями\n\n---\nСПЕЦИАЛИЗИРОВАННАЯ СТРАТЕГИЯ ПОИСКА\n\nДополнительные поисковые запросы:\n\naward\nwinner\nwon\nreceived award\nawarded\naward recipient\n\nпремия\nлауреат\nпобедитель\nполучил награду\nнагражден\n\nПроверять сайты организаторов премий,\nа не только новости о награждении.\n---\nНЕ СЧИТАТЬ:\n* “best company”, “top company”, “leading company” без слова award/winner\n* любые рейтинги (rankings, lists, charts)\n* “recognized as”, “featured in”, “included in list”\n* номинации (nominated / shortlisted)\n* PR-упоминания компании\n* маркетинговые заявления без внешнего подтверждения\n* сертификаты без статуса отраслевой награды\n\nКЛЮЧЕВОЕ ПРАВИЛО:\nЕсли нет явного факта “won / received / awarded” → ЭТО НЕ НАГРАДА\n\n---\nВРЕМЕННАЯ ЛОГИКА\n* Приоритет: источники за последние 2 года от request_date\n* Старые источники НЕ запрещены\n* Старые источники использовать только если:\n  - награда является престижной и долгосрочно значимой\n  - она многократно цитируется в новых публикациях\n  - она является отраслевым стандартом признания\n\n---\nПРАВИЛА ИЗВЛЕЧЕНИЯ\n* Один факт = один источник\n* Каждое утверждение должно содержать точную цитату\n* Запрещено объединять источники в один факт\n* Запрещено интерпретировать рейтинг как награду\n* Запрещено усиливать формулировки (nomination ≠ award)\n\n---\nОЦЕНКА УВЕРЕННОСТИ\nWEAK:\n* один источник\n* локальная или нишевая награда\n* слабое подтверждение или вторичный источник\n\nMEDIUM:\n* 2 независимых источника\n* или один крупный отраслевой источник\n\nSTRONG:\n* международная или национальная престижная награда\n* или официальное подтверждение организатором премии\n* или множественные крупные СМИ\n\n---\nФОРМАТ ОТВЕТА\n### Если найдены данные\n{\n    \"reputation_finding\": \"INDUSTRY_AWARD_FOUND\",\n    \"evidences\": [\n        {\n            \"source\": \"название источника\",\n            \"quote\": \"точная цитата из источника\",\n            \"date\": \"YYYY-MM-DD\",\n            \"url\": \"https://...\",\n            \"confidence\": \"WEAK | MEDIUM | STRONG\"\n        }\n    ]\n}\n---\n### Если данных нет\n{\n    \"reputation_finding\": \"INDUSTRY_AWARD_FOUND\",\n    \"evidences\": []\n}\n---\nОГРАНИЧЕНИЯ\n* Только JSON\n* Никакого текста вне JSON\n* Никаких предположений\n* Никаких интерпретаций вне источника\n* Только прямые цитаты\n\n---\nСМЫСЛОВАЯ МОДЕЛЬ\nINDUSTRY_AWARD = только событие, где компания явно получила награду\n\nНЕ РАВНО:\n* рейтинг\n* список “best companies”\n* PR-упоминание\n* номинация\n* признание без award structure\n\nКЛЮЧЕВОЙ ФИЛЬТР:\nЕсли в источнике нет явного механизма награждения (award / winner / received) → событие игнорируется\n"
+            }
+          ]
+        },
+        "builtInTools": {
+          "webSearch": {
+            "searchContextSize": "medium"
+          }
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        672,
+        1536
+      ],
+      "id": "6d9efb4b-bb45-4398-a739-dad5de57540e",
+      "name": "Web Search INDUSTRY_AWARD",
+      "credentials": {
+        "openAiApi": {
+          "id": "Yooz1EvKAw9nsuQQ",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5.4-mini",
+          "mode": "id"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=Выполни поиск в интернете по компании:\n\nНазвание: {{ $('Code in JavaScript2').item.json.output.company_profile.company_name }}\nИНН: {{ $('Code in JavaScript2').item.json.output.company_profile.inn }}\nОГРН: {{ $('Code in JavaScript2').item.json.output.company_profile.ogrn }}\nРуководитель: {{ $('Code in JavaScript2').item.json.output.company_profile.director }}\nrequest_date: {{ $('Code in JavaScript2').item.json.output.company_profile.request_date }}"
+            },
+            {
+              "role": "system",
+              "content": "Ты — агент анализа репутационных рисков компаний.\n\nТвоя задача — извлекать ТОЛЬКО подтверждённые публичные упоминания признания компании со стороны внешних организаций, институтов или авторитетных источников.\n\n---\nИСТОЧНИКИ ДАННЫХ\nИспользуй ТОЛЬКО результаты Web Search.\nЗАПРЕЩЕНО:\n* додумывать факты\n* интерпретировать вне текста источника\n* превращать рейтинги или медиа-упоминания в “признание”\n\n---\nОБЯЗАТЕЛЬНАЯ СТРАТЕГИЯ ПОИСКА\n\nПеред формированием ответа необходимо выполнить расширенный поиск.\n\nМинимум выполнить 12 различных поисковых запросов.\n\nЗапрещено завершать поиск после первого найденного результата.\n\nОбязательно использовать:\n\n1. Поиск по полному названию компании\n\n2. Поиск по названию компании + категории события\n\n3. Поиск по синонимам категории события\n\n4. Поиск по английским и русским формулировкам\n\n5. Поиск по названию компании и названию организации-источника\n(ассоциации, регуляторы, суды, аналитические агентства, СМИ)\n\n6. Поиск по точным фразам из уже найденных цитат\n\nЕсли найден потенциальный факт:\n\n- выполнить минимум 3 дополнительных поисковых запроса для проверки\n- попытаться найти дополнительные независимые источники\n- проверить, не относится ли факт к другой категории\n\nЕсли дата публикации не найдена явно,\nисточник должен быть добавлен с полем date равным request_date как дата публикации).\n\nНе ограничиваться первыми результатами поиска.\nПроверять не менее 20 результатов выдачи по категории.\n---\nЧТО СЧИТАЕТСЯ PUBLIC_RECOGNITION\nФиксируй только случаи, где источник прямо сообщает о признании компании, включая:\n* признание отраслевыми ассоциациями\n* официальное включение в списки лидеров (leader / top / excellence recognition), если это именно recognition, а не award\n* публичное признание экспертов или институтов\n* признание вклада компании в индустрии\n* включение в отчёты аналитических или исследовательских организаций как “recognized company”\n* официальные acknowledgements (признание вклада, влияния, роли на рынке)\n* признание устойчивости, инновационности или лидерства (если явно указано как recognition)\n\nВАЖНО:\n- это НЕ награда\n- это НЕ медиа-оценка\n- это НЕ рейтинг сам по себе\n- это именно формализованное или институциональное признание\n\n---\nСПЕЦИАЛИЗИРОВАННАЯ СТРАТЕГИЯ ПОИСКА\n\nДополнительно выполнять поиск по формулировкам:\n\nrecognized\nrecognition\nacknowledged\nacknowledgement\nrecognized company\nrecognized leader\nindustry recognition\n\nпризнан\nполучил признание\nотмечен\nотмечен экспертами\nпризнание вклада\nпризнание роли\nзначимый вклад\nвклад в развитие отрасли\n\nОбязательно искать упоминания:\n\nассоциаций\nотраслевых союзов\nаналитических агентств\nисследовательских организаций\nгосударственных органов\nмеждународных институтов\n\n---\nНЕ СЧИТАТЬ:\n* industry awards (INDUSTRY_AWARD_FOUND)\n* медиа-упоминания (POSITIVE_MEDIA_COVERAGE)\n* рейтинги без формулировки “recognized”\n* PR-заявления компании\n* пользовательские отзывы\n* номинации или shortlists\n\n---\nВРЕМЕННАЯ ЛОГИКА\n* Приоритет: источники за последние 2 года от request_date\n* Старые источники НЕ запрещены\n* Старые источники использовать только если:\n  - признание имеет долгосрочный институциональный характер\n  - оно регулярно цитируется в новых аналитических отчетах\n  - оно закреплено в отраслевых стандартах\n\n---\nПРАВИЛА ИЗВЛЕЧЕНИЯ\n* Один факт = один источник\n* Каждое утверждение должно содержать точную цитату\n* Запрещено объединять источники\n* Запрещено интерпретировать “рейтинг” как “признание”\n* Запрещено усиливать формулировки (recognized ≠ leader unless stated)\n\n---\nОЦЕНКА УВЕРЕННОСТИ\nWEAK:\n* один источник\n* локальная или нишевая организация\n* косвенное признание\n\nMEDIUM:\n* 2 независимых источника\n* или один крупный институт / аналитическая организация\n\nSTRONG:\n* международные организации / государственные институты\n* или множественные крупные источники\n* или официальные отчёты отраслевых лидеров\n\n---\nФОРМАТ ОТВЕТА\n### Если найдены данные\n{\n    \"reputation_finding\": \"PUBLIC_RECOGNITION_FOUND\",\n    \"evidences\": [\n        {\n            \"source\": \"название источника\",\n            \"quote\": \"точная цитата из источника\",\n            \"date\": \"YYYY-MM-DD\",\n            \"url\": \"https://...\",\n            \"confidence\": \"WEAK | MEDIUM | STRONG\"\n        }\n    ]\n}\n---\n### Если данных нет\n{\n    \"reputation_finding\": \"PUBLIC_RECOGNITION_FOUND\",\n    \"evidences\": []\n}\n---\nОГРАНИЧЕНИЯ\n* Только JSON\n* Никакого текста вне JSON\n* Никаких предположений\n* Никаких интерпретаций вне источника\n* Только прямые цитаты\n---\nСМЫСЛОВАЯ МОДЕЛЬ\nPUBLIC_RECOGNITION = институциональное или отраслевое признание без статуса award\nНЕ РАВНО:\n* награда\n* PR\n* рейтинг\n* маркетинговое заявление\n\nСистема фиксирует только факт внешнего признания роли/вклада компании, а не просто её упоминание или позицию в списках\n"
+            }
+          ]
+        },
+        "builtInTools": {
+          "webSearch": {
+            "searchContextSize": "medium"
+          }
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        672,
+        1728
+      ],
+      "id": "e4dc02ff-53ab-49d2-a069-42e26bf790b9",
+      "name": "Web Search PUBLIC_RECOGNITION",
+      "credentials": {
+        "openAiApi": {
+          "id": "Yooz1EvKAw9nsuQQ",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Code in JavaScript2').item.json.output.company_profile }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "Ты — Financial Search Agent.\n\nТвоя задача — найти последнюю доступную финансовую информацию о компании.\n\nИспользуй Web Search.\n\n---\nПоиск по:\n1. ИНН\n2. ОГРН\n3. Названию компании\n\n---\nПриоритет источников:\n1. Официальная отчетность компании\n2. Rusprofile\n3. Контур.Фокус (если данные доступны в поиске)\n4. Интерфакс\n5. Другие открытые финансовые источники\n\n---\nНеобходимо найти:\n- revenue\n- net_profit\n- assets\n- liabilities\n- reporting_year\n\n---\n\nПРАВИЛА\n\n1. Приоритет последней доступной отчетности.\n\n2. Если найдено несколько лет:\n\nиспользовать самый новый год.\n\n3. Если показатель отсутствует:\n\nвернуть 0.\n\n4. Не вычислять значения самостоятельно.\n\n5. Не суммировать данные из разных лет.\n\n6. Не использовать приблизительные оценки.\n\n7. Если источник содержит диапазон или оценку:\n\nигнорировать.\n\n---\nФОРМАТ ОТВЕТА\n\n{\n  \"financial_data_found\": true,\n  \"source\": \"Rusprofile\",\n  \"reporting_year\": 2024,\n  \"revenue\": 250000000,\n  \"net_profit\": 15000000,\n  \"assets\": 180000000,\n  \"liabilities\": 90000000\n}\n\nИЛИ \nЕсли данных нет\nreporting_year, revenue, net_profit, assets, liabilities: 0\nsource: NOT_FOUND\nfinancial_data_found: false\n\n{\n  \"financial_data_found\": false,\n  \"source\": \"NOT_FOUND\",\n  \"reporting_year\": 0,\n  \"revenue\": 0,\n  \"net_profit\": 0,\n  \"assets\": 0,\n  \"liabilities\": 0\n}\n\n---\n\nТолько JSON.\nНикакого текста вне JSON."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1504,
+        -128
+      ],
+      "id": "dde70dc1-5a07-428a-bb41-2e28eb90a0e5",
+      "name": "Financial Agent AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5.4-mini",
+          "mode": "id"
+        },
+        "builtInTools": {
+          "webSearch": {
+            "searchContextSize": "medium"
+          }
+        },
+        "options": {
+          "temperature": 0.1
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        1424,
+        48
+      ],
+      "id": "70ef6251-bc98-4b4c-85d7-84a562975563",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "Yooz1EvKAw9nsuQQ",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"financial_data_found\": true,\n  \"source\": \"Rusprofile\",\n  \"reporting_year\": 2024,\n  \"revenue\": 250000000,\n  \"net_profit\": 15000000,\n  \"assets\": 180000000,\n  \"liabilities\": 90000000\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1664,
+        48
+      ],
+      "id": "fec4dbda-b656-487e-8910-5a41edbfddd5",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "jsCode": "const findings = [];\n\nconst revenue = Number($input.first().json.output.revenue || 0);\nconst profit = Number($input.first().json.output.net_profit || 0);\nconst assets = Number($input.first().json.output.assets || 0);\nconst liabilities = Number($input.first().json.output.liabilities || 0);\n\n// ==========================================\n// ПРОВЕРКА НАЛИЧИЯ ФИНАНСОВОЙ ОТЧЕТНОСТИ\n// ==========================================\n\nif (!$input.first().json.output.financial_data_found) {\n  findings.push(\"NO_FINANCIAL_DATA\");\n  // Финансовые данные отсутствуют\n}\n\n// ==========================================\n// ПРОВЕРКА НАЛИЧИЯ ВЫРУЧКИ\n// ==========================================\n\nif (revenue > 0) {\n  findings.push(\"REVENUE_PRESENT\");\n  // Выручка больше нуля\n}\n\n// ==========================================\n// ПРОВЕРКА ЧИСТОЙ ПРИБЫЛИ\n// ==========================================\n\nif (profit > 0) {\n  findings.push(\"POSITIVE_NET_PROFIT\");\n  // Чистая прибыль больше нуля\n}\n\nif (profit < 0) {\n  findings.push(\"NEGATIVE_NET_PROFIT\");\n  // Чистая прибыль меньше нуля\n}\n\n// ==========================================\n// СРАВНЕНИЕ АКТИВОВ И ОБЯЗАТЕЛЬСТВ\n// ==========================================\n\nif (assets > liabilities && assets > 0) {\n  findings.push(\"ASSETS_GREATER_THAN_LIABILITIES\");\n  // Активы превышают обязательства\n}\n\nif (liabilities > assets && liabilities > 0) {\n  findings.push(\"LIABILITIES_GREATER_THAN_ASSETS\");\n  // Обязательства превышают активы\n}\n\n// ==========================================\n// ОПРЕДЕЛЕНИЕ УРОВНЯ РИСКА\n// ==========================================\n\nlet risk = \"LOW\";\n// Не выявлены признаки для повышения уровня риска\n\nif (\n  findings.includes(\"NEGATIVE_NET_PROFIT\") ||\n  findings.includes(\"LIABILITIES_GREATER_THAN_ASSETS\")\n) {\n  risk = \"HIGH\";\n  // Выявлена отрицательная чистая прибыль\n  // или обязательства превышают активы\n}\nelse if (\n  findings.includes(\"NO_FINANCIAL_DATA\")\n) {\n  risk = \"MEDIUM\";\n  // Финансовые данные отсутствуют\n}\n\nconst applicationId = $input.first().json.applicationId;\nconst tool = '07_Financial_Assessment';\n\nreturn [{\n  json: {\n      applicationId,\n      tool,\n      output: {\n        financial_assessment: {\n          financial_findings: findings,\n          financial_risk_level: risk,\n          revenue,\n          net_profit: profit,\n          assets,\n          liabilities,\n          reporting_year: $input.first().json.output.reporting_year\n        }\n      }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2320,
+        -208
+      ],
+      "id": "3ca3aba4-90f0-42c4-9ae8-3f7552d38bb8",
+      "name": "Financial Assessment"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json.output;\n\nlet score = 0;\nconst riskFactors = [];\n\n// ==========================================\n// ПОЛУЧЕНИЕ РЕЗУЛЬТАТОВ ПРОВЕРОК\n// ==========================================\n\nconst registration =\n  $input.first().json.output.registration_assessment.registration_findings || [];\n\nconst compliance = $input.first().json.output.compliance_assessment.compliance_findings || [];\n\nconst reputation = $input.first().json.output.reputation_assessment.reputation_findings || [];\n\nconst financial = $input.first().json.output.financial_assessment.financial_findings\n  || [];\n\nconst credit =\n  $input.first().json.output.credit_assessment\n    .credit_findings || [];\n\n// ==========================================\n// РЕГИСТРАЦИОННЫЕ ФАКТОРЫ\n// ==========================================\n\nif (registration.includes(\"LIQUIDATING\")) {\n  score += 100;\n  riskFactors.push(\"LIQUIDATING\");\n  // Компания находится в процессе ликвидации\n}\n\nif (registration.includes(\"LIQUIDATED\")) {\n  score += 100;\n  riskFactors.push(\"LIQUIDATED\");\n  // Компания ликвидирована\n}\n\n// ==========================================\n// КОМПЛАЕНС-ФАКТОРЫ\n// ==========================================\n\nif (compliance.includes(\"MASS_ADDRESS\")) {\n  score += 20;\n  riskFactors.push(\"MASS_ADDRESS\");\n  // Выявлен признак массового адреса\n}\n\n// ==========================================\n// РЕПУТАЦИОННЫЕ ФАКТОРЫ\n// ==========================================\n\nif (\n  reputation.includes(\"PUBLIC_LITIGATION_MENTIONED\")\n) {\n  score += 15;\n  riskFactors.push(\n    \"PUBLIC_LITIGATION_MENTIONED\"\n  );\n  // Выявлен признак PUBLIC_LITIGATION_MENTIONED\n}\n\n// ==========================================\n// ФИНАНСОВЫЕ ФАКТОРЫ\n// ==========================================\n\nif (\n  financial.includes(\"NEGATIVE_NET_PROFIT\")\n) {\n  score += 30;\n  riskFactors.push(\n    \"NEGATIVE_NET_PROFIT\"\n  );\n  // Чистая прибыль меньше нуля\n}\n\nif (\n  financial.includes(\"POSITIVE_NET_PROFIT\")\n) {\n  score -= 5;\n  // Чистая прибыль больше нуля\n}\n\n// ==========================================\n// КРЕДИТНЫЕ ФАКТОРЫ\n// ==========================================\n\nif (\n  credit.includes(\"LOAN_EXCEEDS_REVENUE\")\n) {\n  score += 40;\n  riskFactors.push(\n    \"LOAN_EXCEEDS_REVENUE\"\n  );\n  // Сумма займа превышает выручку\n}\n\nif (\n  credit.includes(\"LOAN_TO_REVENUE_HIGH\")\n) {\n  score += 30;\n  riskFactors.push(\n    \"LOAN_TO_REVENUE_HIGH\"\n  );\n  // Отношение суммы займа к выручке > 1\n}\n\nif (\n  credit.includes(\"LOAN_TO_REVENUE_MODERATE\")\n) {\n  score += 15;\n  riskFactors.push(\n    \"LOAN_TO_REVENUE_MODERATE\"\n  );\n  // Отношение суммы займа к выручке > 0.3 и ≤ 1\n}\n\nif (\n  credit.includes(\"NO_PROFIT_SUPPORT\")\n) {\n  score += 15;\n  riskFactors.push(\n    \"NO_PROFIT_SUPPORT\"\n  );\n  // Чистая прибыль отсутствует либо не больше нуля\n}\n\nif (\n  credit.includes(\"LOAN_SUPPORTED_BY_PROFIT\")\n) {\n  score -= 5;\n  // Отношение суммы займа к чистой прибыли ≤ 2\n}\n\n// ==========================================\n// РЕПУТАЦИОННЫЕ СОБЫТИЯ\n// ==========================================\n\nif (\n  reputation.includes(\"FRAUD_ALLEGATION_FOUND\")\n) {\n  score += 100;\n  riskFactors.push(\n    \"FRAUD_ALLEGATION_FOUND\"\n  );\n  // Выявлен признак FRAUD_ALLEGATION_FOUND\n}\n\nif (\n  reputation.includes(\"REPUTATIONAL_SCANDAL_FOUND\")\n) {\n  score += 100;\n  riskFactors.push(\n    \"REPUTATIONAL_SCANDAL_FOUND\"\n  );\n  // Выявлен признак REPUTATIONAL_SCANDAL_FOUND\n}\n\n// ==========================================\n// НОРМАЛИЗАЦИЯ БАЛЛА РИСКА\n// ==========================================\n\nif (score < 0) {\n  score = 0;\n}\n\n// ==========================================\n// ОПРЕДЕЛЕНИЕ УРОВНЯ РИСКА\n// ==========================================\n\nlet riskLevel = \"LOW\";\n// Итоговый балл риска меньше 20\n\nif (score >= 50) {\n  riskLevel = \"HIGH\";\n  // Итоговый балл риска 50 или выше\n}\nelse if (score >= 20) {\n  riskLevel = \"MEDIUM\";\n  // Итоговый балл риска от 20 до 49 включительно\n}\n\n// ==========================================\n// ФОРМИРОВАНИЕ РЕЗУЛЬТАТА\n// ==========================================\n\nconst applicationId = $input.first().json.applicationId;\nconst tool = '08_Risk_Assessment';\n\nreturn [{\n  json: {\n      applicationId,\n      tool,\n      output: {\n        ...item,\n    \n          risk_assessment: {\n            risk_score: score,\n            risk_level: riskLevel,\n            risk_factors: riskFactors\n          }\n    }\n  }\n}]\n;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3120,
+        240
+      ],
+      "id": "b147ab12-5980-415e-a7e8-7e8e7266a1d3",
+      "name": "Risk Score Engine"
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = [];\n\nfor (const item of $input.all()) {\n\n  const revenue =\n    Number($input.first().json.output.revenue || 0);\n\n  const profit =\n    Number($input.first().json.output.net_profit || 0);\n\n  const loanAmount =\n    Number(\n      $('Company Profile Builder')\n        .first()\n        .json\n        .output\n        .company_profile\n        .requested_loan_amount || 0\n    );\n\n  const findings = [];\n\n  let loan_to_revenue = null;\n  let loan_to_profit = null;\n\n  // ==========================================\n  // РАСЧЕТ ОТНОШЕНИЯ СУММЫ ЗАЙМА К ВЫРУЧКЕ\n  // ==========================================\n\n  if (revenue > 0) {\n    loan_to_revenue = loanAmount / revenue;\n  }\n\n  // ==========================================\n  // РАСЧЕТ ОТНОШЕНИЯ СУММЫ ЗАЙМА К ЧИСТОЙ ПРИБЫЛИ\n  // ==========================================\n\n  if (profit > 0) {\n    loan_to_profit = loanAmount / profit;\n  }\n\n  // ==========================================\n  // АНАЛИЗ ОТНОШЕНИЯ ЗАЙМА К ВЫРУЧКЕ\n  // ==========================================\n\n  if (loan_to_revenue !== null) {\n\n    if (loan_to_revenue <= 0.3) {\n      findings.push(\"LOAN_TO_REVENUE_LOW\");\n      // Отношение суммы займа к выручке ≤ 0.3\n    }\n\n    else if (loan_to_revenue <= 1) {\n      findings.push(\"LOAN_TO_REVENUE_MODERATE\");\n      // Отношение суммы займа к выручке > 0.3 и ≤ 1\n    }\n\n    else {\n      findings.push(\"LOAN_TO_REVENUE_HIGH\");\n      // Отношение суммы займа к выручке > 1\n    }\n\n  } else {\n\n    findings.push(\"REVENUE_DATA_MISSING\");\n    // Отсутствуют данные о выручке либо выручка не больше нуля\n\n  }\n\n  // ==========================================\n  // АНАЛИЗ ОТНОШЕНИЯ ЗАЙМА К ЧИСТОЙ ПРИБЫЛИ\n  // ==========================================\n\n  if (loan_to_profit !== null) {\n\n    if (loan_to_profit <= 2) {\n      findings.push(\"LOAN_SUPPORTED_BY_PROFIT\");\n      // Отношение суммы займа к чистой прибыли ≤ 2\n    }\n\n    else if (loan_to_profit <= 5) {\n      findings.push(\"LOAN_PROFIT_COVERAGE_MODERATE\");\n      // Отношение суммы займа к чистой прибыли > 2 и ≤ 5\n    }\n\n    else {\n      findings.push(\"LOAN_PROFIT_COVERAGE_WEAK\");\n      // Отношение суммы займа к чистой прибыли > 5\n    }\n\n  } else {\n\n    findings.push(\"PROFIT_DATA_MISSING\");\n    // Отсутствуют данные о чистой прибыли либо прибыль не больше нуля\n\n  }\n\n  // ==========================================\n  // ДОПОЛНИТЕЛЬНЫЕ ПРОВЕРКИ\n  // ==========================================\n\n  if (revenue > 0 && loanAmount > revenue) {\n    findings.push(\"LOAN_EXCEEDS_REVENUE\");\n    // Сумма займа превышает выручку\n  }\n\n  if (profit <= 0) {\n    findings.push(\"NO_PROFIT_SUPPORT\");\n    // Чистая прибыль отсутствует либо не больше нуля\n  }\n\n  // ==========================================\n  // ОПРЕДЕЛЕНИЕ УРОВНЯ РИСКА\n  // ==========================================\n\n  let risk = \"LOW\";\n\n  const criticalFlags = [\n    \"LOAN_TO_REVENUE_HIGH\",\n    \"LOAN_EXCEEDS_REVENUE\"\n  ];\n\n  const moderateFlags = [\n    \"LOAN_TO_REVENUE_MODERATE\",\n    \"LOAN_PROFIT_COVERAGE_MODERATE\",\n    \"LOAN_PROFIT_COVERAGE_WEAK\",\n    \"NO_PROFIT_SUPPORT\"\n  ];\n\n  if (\n    findings.some(flag =>\n      criticalFlags.includes(flag)\n    )\n  ) {\n    risk = \"HIGH\";\n    // Выявлен хотя бы один критический признак\n  }\n\n  else if (\n    findings.some(flag =>\n      moderateFlags.includes(flag)\n    )\n  ) {\n    risk = \"MEDIUM\";\n    // Выявлен хотя бы один умеренный признак и нет критических\n  }\n\n  // Иначе остается LOW\n  // Не выявлено критических или умеренных признаков\n\nconst applicationId = $input.first().json.applicationId;\nconst tool = '07_Credit_Assessment';\n  \n  results.push({\n    json: {\n      applicationId,\n      tool,\n      output: {\n        credit_assessment: {\n          revenue: revenue,\n          net_profit: profit,\n  \n          loan_to_revenue_ratio: loan_to_revenue,\n          loan_to_profit_ratio: loan_to_profit,\n  \n          credit_findings: findings,\n  \n          loan_risk: risk\n        }\n      }\n    }\n  });\n\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2336,
+        -16
+      ],
+      "id": "eab6a380-3333-409c-84d2-9e7024ba72d8",
+      "name": "Credit Structuring"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json.output;\n\nconst risk =\n  $input.first().json.output.risk_assessment || {};\n\nconst registration = $input.first().json.output.registration_assessment.registration_findings || [];\n\nconst reputation = $input.first().json.output.reputation_assessment.reputation_findings || [];\n\nconst credit = $input.first().json.output.credit_assessment.credit_findings || [];\n\nlet autoDecision = \"APPROVE\";\n// Заявка автоматически одобряется\n\nconst policyFlags = [];\nconst policyViolations = [];\n\n// ==========================================\n// УСЛОВИЯ АВТОМАТИЧЕСКОГО ОТКЛОНЕНИЯ\n// ==========================================\n\nif (\n  registration.includes(\"LIQUIDATING\") ||\n  registration.includes(\"LIQUIDATED\")\n) {\n  autoDecision = \"DECLINE\";\n  // Заявка автоматически отклоняется\n\n  policyViolations.push(\n    \"COMPANY_IN_LIQUIDATION\"\n  );\n  // Компания находится в процессе ликвидации\n  // либо ликвидирована\n}\n\nif (\n  reputation.includes(\n    \"FRAUD_ALLEGATION_FOUND\"\n  )\n) {\n  autoDecision = \"DECLINE\";\n  // Заявка автоматически отклоняется\n\n  policyViolations.push(\n    \"FRAUD_ALLEGATION_FOUND\"\n  );\n  // Выявлен признак FRAUD_ALLEGATION_FOUND\n}\n\n// ==========================================\n// УСЛОВИЯ РУЧНОЙ ПРОВЕРКИ\n// ==========================================\n\nif (\n  autoDecision !== \"DECLINE\" &&\n  risk.risk_score >= 50\n) {\n  autoDecision = \"MANUAL_REVIEW\";\n  // Требуется ручное рассмотрение заявки\n}\n\n// ==========================================\n// ДОПОЛНИТЕЛЬНЫЕ ФЛАГИ ПОЛИТИКИ\n// ==========================================\n\nif (\n  credit.includes(\n    \"LOAN_EXCEEDS_REVENUE\"\n  )\n) {\n  policyFlags.push(\n    \"REVENUE_INSUFFICIENT\"\n  );\n  // Выявлен признак LOAN_EXCEEDS_REVENUE\n}\n\nif (\n  credit.includes(\n    \"NO_PROFIT_SUPPORT\"\n  )\n) {\n  policyFlags.push(\n    \"PROFIT_SUPPORT_MISSING\"\n  );\n  // Выявлен признак NO_PROFIT_SUPPORT\n}\n\n// ==========================================\n// ФОРМИРОВАНИЕ РЕЗУЛЬТАТА\n// ==========================================\n\nconst applicationId = $input.first().json.applicationId;\nconst tool = '09_Policy_Assessment';\n\nreturn [{\n  json: {\n      applicationId,\n      tool,\n      output: {\n        ...item,\n    \n        policy_assessment: {\n          auto_decision: autoDecision,\n          // APPROVE — автоматическое одобрение\n          // DECLINE — автоматическое отклонение\n          // MANUAL_REVIEW — требуется ручное рассмотрение\n    \n          policy_flags: policyFlags,\n          // Дополнительные предупреждающие флаги\n    \n          policy_violations: policyViolations,\n          // Выявленные нарушения политики\n    \n          requires_committee_review:\n            autoDecision === \"MANUAL_REVIEW\"\n        }\n    }\n  }\n}\n]\n;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3504,
+        240
+      ],
+      "id": "0463f272-263e-4eb2-a82e-dff60cc82060",
+      "name": "Policy Engine"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "bDwWnCE9VvNaN8UB",
+          "mode": "id",
+          "cachedResultUrl": "/workflow/bDwWnCE9VvNaN8UB"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "applicationId": "={{ $json.applicationId }}",
+            "tool": "={{ $json.tool }}",
+            "output": "={{ $json.output }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "applicationId",
+              "displayName": "applicationId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tool",
+              "displayName": "tool",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "output",
+              "displayName": "output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -1856,
+        512
+      ],
+      "id": "298b8861-9401-4ccb-bc31-116a1ee481a2",
+      "name": "Call 'WF_Audit_Logger'"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || {};\n\nconst inn = String(body.inn || \"\");\nconst kpp = String(body.kpp || \"\");\nconst loanAmount = Number(body.loan_amount || 0);\nconst loanTerm = Number(body.loan_term || 0);\n\nconst requestDate = new Date().toISOString();\n\nconst applicationId = String(body.applicationId || \"\")\n\nreturn [\n  {\n    json: {\n      applicationId,\n      tool: \"01_Input_Form\",\n      output: {\n        inn,\n        kpp,\n        loanAmount,\n        loanTerm,\n        requestDate,\n      },\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2416,
+        512
+      ],
+      "id": "bb4ca651-82e3-429d-b346-da1d9a9b6a38",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "bDwWnCE9VvNaN8UB",
+          "mode": "id",
+          "cachedResultUrl": "/workflow/bDwWnCE9VvNaN8UB"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "applicationId": "={{ $json.applicationId }}",
+            "tool": "={{ $json.tool }}",
+            "output": "={{ $json.output }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "applicationId",
+              "displayName": "applicationId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tool",
+              "displayName": "tool",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "output",
+              "displayName": "output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -560,
+        240
+      ],
+      "id": "a980b49d-0d3a-4948-9fe1-bd2bc988184e",
+      "name": "Call 'WF_Audit_Logger'3"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Определение кол-ва лет компании и нормализация дат из Дадата\n\nreturn $input.all().map(item => {\n  const profile = $('Company Profile Builder').first().json.output.company_profile || {};\n\n  const toDateString = (value) => {\n    if (!value) return null;\n    const d = new Date(value);\n    if (isNaN(d.getTime())) return null;\n    return d.toISOString().split(\"T\")[0];\n  };\n\n  const registrationDateObj = profile.registration_date ? new Date(profile.registration_date) : null;\n\n  let company_age_category = \"UNKNOWN\";\n\n  if (!registrationDateObj || isNaN(registrationDateObj.getTime())) {\n    company_age_category = \"REGISTRATION_DATE_MISSING\";\n  } else {\n    const years =\n      (Date.now() - registrationDateObj.getTime()) /\n      (1000 * 60 * 60 * 24 * 365.25);\n\n    if (years < 1) {\n      company_age_category = \"COMPANY_YOUNGER_THAN_1_YEAR\";\n    } else if (years < 3) {\n      company_age_category = \"COMPANY_1_TO_3_YEARS\";\n    } else {\n      company_age_category = \"COMPANY_OLDER_THAN_3_YEARS\";\n    }\n  }\nconst applicationId = $('Company Profile Builder').first().json.applicationId;\n  const tool = '04_Company_Profile_Data_Builder';\n\n  return {\n    json: {\n      applicationId,\n      tool,\n      output: {\n      company_profile: {\n        ...profile,\n        registration_date: toDateString(profile.registration_date),\n        state_actuality_date: toDateString(profile.state_actuality_date),\n        company_age_category,\n        request_date: $input.first().json.output.company_profile.request_date\n      }\n    }}\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -352,
+        240
+      ],
+      "id": "8df6c951-102c-4d30-a045-8b71c2788a52",
+      "name": "Company age category"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "bDwWnCE9VvNaN8UB",
+          "mode": "id",
+          "cachedResultUrl": "/workflow/bDwWnCE9VvNaN8UB"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "applicationId": "={{ $json.applicationId }}",
+            "tool": "={{ $json.tool }}",
+            "output": "={{ $json.output }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "applicationId",
+              "displayName": "applicationId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tool",
+              "displayName": "tool",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "output",
+              "displayName": "output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -2240,
+        512
+      ],
+      "id": "8f2dee4a-7b18-4127-94ba-6110a63a7cdf",
+      "name": "Call 'WF_Audit_Logger'5"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "bDwWnCE9VvNaN8UB",
+          "mode": "id",
+          "cachedResultUrl": "/workflow/bDwWnCE9VvNaN8UB"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "applicationId": "={{ $json.applicationId }}",
+            "tool": "={{ $json.tool }}",
+            "output": "={{ $json.output }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "applicationId",
+              "displayName": "applicationId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tool",
+              "displayName": "tool",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "output",
+              "displayName": "output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        192,
+        240
+      ],
+      "id": "a71efea1-dd93-49b0-86de-b4d3ec9a3618",
+      "name": "Call 'WF_Audit_Logger'6"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://suggestions.dadata.ru/suggestions/api/4_1/rs/findById/party",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": []
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $json.output.inn }}"
+            },
+            {
+              "name": "kpp",
+              "value": "={{ $json.output.kpp }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -1200,
+        464
+      ],
+      "id": "633f06f5-da72-43e5-9bae-404d848cfe57",
+      "name": "HTTP Request - запрос dadata по ИНН1",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "t7IuhVZ7DRGoAt9v",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "fb0b4be6-ace4-4f3a-84b2-e9ecd2cc41b7",
+              "leftValue": "={{ $json.output.kpp }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1456,
+        400
+      ],
+      "id": "5c001d9e-6387-4ba9-ba90-0761140a2629",
+      "name": "If - корректность данных1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a9672f8f-f813-4381-aaef-b0de7fa7c892",
+              "name": "applicationId",
+              "value": "={{ $('Call \\'WF_Audit_Logger\\'6').item.json.applicationId }}",
+              "type": "string"
+            },
+            {
+              "id": "9e5482d8-d1e7-41f1-9567-6293857ee4d2",
+              "name": "tool",
+              "value": "=06_{{ $json.item.reputation_finding }}",
+              "type": "string"
+            },
+            {
+              "id": "68846902-fde5-4919-bea6-3454df1116fe",
+              "name": "output",
+              "value": "={{ $json.item }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1872,
+        1264
+      ],
+      "id": "38f6591e-7c85-42e0-bc38-0b231e4416e0",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "bDwWnCE9VvNaN8UB",
+          "mode": "id",
+          "cachedResultUrl": "/workflow/bDwWnCE9VvNaN8UB"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "applicationId": "={{ $json.applicationId }}",
+            "tool": "={{ $json.tool }}",
+            "output": "={{ $json.output }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "applicationId",
+              "displayName": "applicationId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tool",
+              "displayName": "tool",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "output",
+              "displayName": "output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2016,
+        1264
+      ],
+      "id": "65cbb878-6ce5-4cf7-b8df-b49fe9f4cd2f",
+      "name": "Call 'WF_Audit_Logger'7"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "bDwWnCE9VvNaN8UB",
+          "mode": "id",
+          "cachedResultUrl": "/workflow/bDwWnCE9VvNaN8UB"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "applicationId": "={{ $json.applicationId }}",
+            "tool": "={{ $json.tool }}",
+            "output": "={{ $json.output }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "applicationId",
+              "displayName": "applicationId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tool",
+              "displayName": "tool",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "output",
+              "displayName": "output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2416,
+        1072
+      ],
+      "id": "b10fd0af-918b-411d-8273-73b7798a6adf",
+      "name": "Call 'WF_Audit_Logger'8"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "bDwWnCE9VvNaN8UB",
+          "mode": "id",
+          "cachedResultUrl": "/workflow/bDwWnCE9VvNaN8UB"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "applicationId": "={{ $json.applicationId }}",
+            "tool": "={{ $json.tool }}",
+            "output": "={{ $json.output }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "applicationId",
+              "displayName": "applicationId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tool",
+              "displayName": "tool",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "output",
+              "displayName": "output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2576,
+        320
+      ],
+      "id": "d7ea3038-5b47-4db4-acc0-11f917984247",
+      "name": "Call 'WF_Audit_Logger'9"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "bDwWnCE9VvNaN8UB",
+          "mode": "id",
+          "cachedResultUrl": "/workflow/bDwWnCE9VvNaN8UB"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "applicationId": "={{ $json.applicationId }}",
+            "tool": "={{ $json.tool }}",
+            "output": "={{ $json.output }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "applicationId",
+              "displayName": "applicationId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tool",
+              "displayName": "tool",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "output",
+              "displayName": "output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2576,
+        464
+      ],
+      "id": "4ffc4c20-30bf-405f-9b7e-e769543475b0",
+      "name": "Call 'WF_Audit_Logger'10"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\"applicationId\":{{ $('Call \\'WF_Audit_Logger\\'6').item.json.applicationId }},\n\"tool\":06_Financial_Agent_AI_Agent,\n\"output\":{{ $json.output }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1824,
+        -128
+      ],
+      "id": "91ba59eb-ff7a-4154-8bd5-f149391c9f20",
+      "name": "Edit Fields6"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "bDwWnCE9VvNaN8UB",
+          "mode": "id",
+          "cachedResultUrl": "/workflow/bDwWnCE9VvNaN8UB"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "applicationId": "={{ $json.applicationId }}",
+            "tool": "={{ $json.tool }}",
+            "output": "={{ $json.output }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "applicationId",
+              "displayName": "applicationId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tool",
+              "displayName": "tool",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "output",
+              "displayName": "output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2016,
+        -128
+      ],
+      "id": "b144a419-2fa5-49c2-9e3e-ead3e3980f9a",
+      "name": "Call 'WF_Audit_Logger'11"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "bDwWnCE9VvNaN8UB",
+          "mode": "id",
+          "cachedResultUrl": "/workflow/bDwWnCE9VvNaN8UB"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "applicationId": "={{ $json.applicationId }}",
+            "tool": "={{ $json.tool }}",
+            "output": "={{ $json.output }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "applicationId",
+              "displayName": "applicationId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tool",
+              "displayName": "tool",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "output",
+              "displayName": "output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2528,
+        -208
+      ],
+      "id": "e9ff2da5-8cfd-492a-8863-8f93f9bbc743",
+      "name": "Call 'WF_Audit_Logger'12"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "bDwWnCE9VvNaN8UB",
+          "mode": "id",
+          "cachedResultUrl": "/workflow/bDwWnCE9VvNaN8UB"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "applicationId": "={{ $json.applicationId }}",
+            "tool": "={{ $json.tool }}",
+            "output": "={{ $json.output }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "applicationId",
+              "displayName": "applicationId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tool",
+              "displayName": "tool",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "output",
+              "displayName": "output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        3328,
+        240
+      ],
+      "id": "0034bae9-aa2f-4917-bed8-8633d004b8e2",
+      "name": "Call 'WF_Audit_Logger'13"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "bDwWnCE9VvNaN8UB",
+          "mode": "id",
+          "cachedResultUrl": "/workflow/bDwWnCE9VvNaN8UB"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "applicationId": "={{ $json.applicationId }}",
+            "tool": "={{ $json.tool }}",
+            "output": "={{ $json.output }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "applicationId",
+              "displayName": "applicationId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tool",
+              "displayName": "tool",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "output",
+              "displayName": "output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        3680,
+        240
+      ],
+      "id": "6964855e-b127-4205-9ef0-c0609c0e0bcf",
+      "name": "Call 'WF_Audit_Logger'14"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $('Policy Engine').first().json.output;\n\nconst findings = [\n  ...($('Policy Engine').first().json.output.financial_assessment.financial_findings|| []),\n\n  ...($('Policy Engine').first().json.output.compliance_assessment.compliance_findings || []),\n\n  ...($('Policy Engine').first().json.output.reputation_assessment.reputation_findings || []),\n\n  ...($('Policy Engine').first().json.output.financial_assessment.financial_findings || []),\n\n  ...($('Policy Engine').first().json.output.credit_assessment.credit_findings || [])\n];\n\n// ==========================================\n// ПРАВИЛА АВТОМАТИЧЕСКОГО ОТКЛОНЕНИЯ\n// ==========================================\n\nconst declineRules = [\n\n  \"LIQUIDATING\",\n  // Компания находится в процессе ликвидации\n\n  \"LIQUIDATED\",\n  // Компания ликвидирована\n\n  \"BANKRUPTCY_INDICATOR\",\n  // Выявлен признак банкротства\n\n  \"FRAUD_ALLEGATION_FOUND\",\n  // Выявлен признак FRAUD_ALLEGATION_FOUND\n\n  \"REPUTATIONAL_SCANDAL_FOUND\",\n  // Выявлен признак REPUTATIONAL_SCANDAL_FOUND\n\n  \"LOAN_EXCEEDS_REVENUE\"\n  // Выявлен признак LOAN_EXCEEDS_REVENUE\n\n];\n\n// ==========================================\n// ПРАВИЛА ПЕРЕДАЧИ НА РУЧНОЕ РАССМОТРЕНИЕ\n// ==========================================\n\nconst reviewRules = [\n\n  \"MASS_ADDRESS\",\n  // Выявлен признак массового адреса\n\n  \"MASS_DIRECTOR\",\n  // Выявлен признак массового директора\n\n  \"PUBLIC_LITIGATION_MENTIONED\",\n  // Выявлен признак PUBLIC_LITIGATION_MENTIONED\n\n  \"NEGATIVE_MEDIA_COVERAGE\",\n  // Выявлен признак NEGATIVE_MEDIA_COVERAGE\n\n  \"NO_FINANCIAL_DATA\",\n  // Финансовые данные отсутствуют\n\n  \"LOAN_TO_REVENUE_HIGH\",\n  // Выявлен признак LOAN_TO_REVENUE_HIGH\n\n  \"NO_PROFIT_SUPPORT\"\n  // Выявлен признак NO_PROFIT_SUPPORT\n\n];\n\n// ==========================================\n// НАЧАЛЬНОЕ РЕШЕНИЕ\n// ==========================================\n\nlet autoDecision = \"APPROVE\";\n// Автоматическое одобрение\n\nconst triggeredRules = [];\n// Список сработавших правил\n\n// ==========================================\n// ПРОВЕРКА ПРАВИЛ ОТКЛОНЕНИЯ\n// ==========================================\n\nfor (const rule of declineRules) {\n\n  if (findings.includes(rule)) {\n\n    autoDecision = \"DECLINE\";\n    // Автоматическое отклонение\n\n    triggeredRules.push(rule);\n\n  }\n\n}\n\n// ==========================================\n// ПРОВЕРКА ПРАВИЛ РУЧНОГО РАССМОТРЕНИЯ\n// ==========================================\n\nif (autoDecision !== \"DECLINE\") {\n\n  for (const rule of reviewRules) {\n\n    if (findings.includes(rule)) {\n\n      autoDecision = \"MANUAL_REVIEW\";\n      // Требуется ручное рассмотрение\n\n      triggeredRules.push(rule);\n\n    }\n\n  }\n\n}\n\n// ==========================================\n// ФОРМИРОВАНИЕ РЕЗУЛЬТАТА\n// ==========================================\n\nconst applicationId = $input.first().json.applicationId;\nconst tool = '10_Decision_Explanation';\n\nreturn [{\n  json: {\n      applicationId,\n      tool,\n      output: {\n        ...item,\n    \n          decision_explanation: {\n      \n            auto_decision: autoDecision,\n            // APPROVE — автоматическое одобрение\n            // DECLINE — автоматическое отклонение\n            // MANUAL_REVIEW — требуется ручное рассмотрение\n      \n            triggered_policy_rules: triggeredRules\n            // Список правил, которые сработали\n          }\n    }\n  }\n}\n]\n;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3856,
+        240
+      ],
+      "id": "e4db129c-3c6b-4ec5-9de1-3ee60f35bd07",
+      "name": "Decision Explanation"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "bDwWnCE9VvNaN8UB",
+          "mode": "id",
+          "cachedResultUrl": "/workflow/bDwWnCE9VvNaN8UB"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "applicationId": "={{ $json.applicationId }}",
+            "tool": "={{ $json.tool }}",
+            "output": "={{ $json.output }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "applicationId",
+              "displayName": "applicationId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tool",
+              "displayName": "tool",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "output",
+              "displayName": "output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2528,
+        -16
+      ],
+      "id": "2929c172-d053-4b04-b42d-fbf6ba4d917f",
+      "name": "Call 'WF_Audit_Logger'15"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "bDwWnCE9VvNaN8UB",
+          "mode": "id",
+          "cachedResultUrl": "/workflow/bDwWnCE9VvNaN8UB"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "applicationId": "={{ $json.applicationId }}",
+            "tool": "={{ $json.tool }}",
+            "output": "={{ $json.output }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "applicationId",
+              "displayName": "applicationId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tool",
+              "displayName": "tool",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "output",
+              "displayName": "output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        4048,
+        240
+      ],
+      "id": "80d67bc7-0e63-499f-a7b4-6d82f11d18f4",
+      "name": "Call 'WF_Audit_Logger'16"
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = [];\n\nfor (const item of $(\"Code in JavaScript2\").all()) {\n\n  const profile = item.json.output.company_profile || {};\n\n  const findings = [];\n\n  // ==========================================\n  // ПРОВЕРКА СТАТУСА КОМПАНИИ\n  // ==========================================\n\n  if (profile.company_status === \"ACTIVE\") {\n    findings.push(\"ACTIVE\"); // Компания действует\n  } else if (profile.company_status === \"LIQUIDATING\") {\n    findings.push(\"LIQUIDATING\"); // Компания находится в процессе ликвидации\n  } else if (profile.company_status === \"LIQUIDATED\") {\n    findings.push(\"LIQUIDATED\"); // Компания ликвидирована\n  }\n\n  // ==========================================\n  // ПРОВЕРКА ВОЗРАСТНОЙ КАТЕГОРИИ КОМПАНИИ\n  // ==========================================\n\n  if (profile.company_age_category) {\n    findings.push(profile.company_age_category);\n  }\n\n  // ==========================================\n  // ПРОВЕРКА НАЛИЧИЯ РУКОВОДИТЕЛЯ\n  // ==========================================\n\n  if (profile.director && profile.director.trim() !== \"\") {\n    findings.push(\"DIRECTOR_PRESENT\"); // Информация о руководителе указана\n  } else {\n    findings.push(\"DIRECTOR_MISSING\"); // Информация о руководителе отсутствует\n  }\n\n  // ==========================================\n  // ПРОВЕРКА НАЛИЧИЯ АДРЕСА\n  // ==========================================\n\n  if (profile.address && profile.address.trim() !== \"\") {\n    findings.push(\"ADDRESS_PRESENT\"); // Юридический адрес указан\n  } else {\n    findings.push(\"ADDRESS_MISSING\"); // Юридический адрес отсутствует\n  }\n\n  // ==========================================\n  // ПРОВЕРКА НАЛИЧИЯ ОКВЭД\n  // ==========================================\n\n  if (profile.okved && profile.okved.trim() !== \"\") {\n    findings.push(\"OKVED_PRESENT\"); // Основной ОКВЭД указан\n  } else {\n    findings.push(\"OKVED_MISSING\"); // Основной ОКВЭД отсутствует\n  }\n\n  // ==========================================\n  // ПРОВЕРКА ДАТЫ РЕГИСТРАЦИИ\n  // ==========================================\n\n  const regDate = profile.registration_date;\n\n  if (!regDate) {\n\n    findings.push(\"REGISTRATION_DATE_MISSING\");\n    // Дата регистрации отсутствует\n\n  } else {\n\n    const validDate =\n      /^\\d{4}-\\d{2}-\\d{2}$/.test(regDate) &&\n      !isNaN(Date.parse(regDate));\n\n    if (validDate) {\n\n      findings.push(\"REGISTRATION_DATE_PRESENT\");\n      // Дата регистрации присутствует и имеет корректный формат\n\n    } else {\n\n      findings.push(\"REGISTRATION_DATE_INVALID\");\n      // Дата регистрации указана, но имеет некорректный формат\n\n    }\n  }\n\n  // ==========================================\n  // РАСЧЕТ УРОВНЯ УВЕРЕННОСТИ\n  // ==========================================\n\n  const missingCount = findings.filter(f =>\n    f.endsWith(\"_MISSING\")\n  ).length;\n\n  let confidence;\n\n  if (missingCount === 0) {\n\n    confidence = \"HIGH\";\n    // Высокая уверенность: все обязательные данные присутствуют\n\n  } else if (missingCount <= 2) {\n\n    confidence = \"MEDIUM\";\n    // Средняя уверенность: отсутствует не более двух обязательных полей\n\n  } else {\n\n    confidence = \"LOW\";\n    // Низкая уверенность: отсутствует несколько обязательных полей\n\n  }\n\n  // ==========================================\n  // ФОРМИРОВАНИЕ РЕЗУЛЬТАТА\n  // ==========================================\nconst applicationId = $('Code in JavaScript2').first().json.applicationId;\nconst tool = '06_Registration_Assessment';\n  \n  results.push({\n    json: {\n      applicationId,\n      tool,\n      output: {\n      registration_assessment: {\n        registration_findings: findings,\n        registration_confidence: confidence\n        }\n      }\n    }\n  });\n\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2368,
+        320
+      ],
+      "id": "1607b322-57dc-4133-be2c-2aa9d86d913e",
+      "name": "Registration"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "bDwWnCE9VvNaN8UB",
+          "mode": "id",
+          "cachedResultUrl": "/workflow/bDwWnCE9VvNaN8UB"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "applicationId": "={{ $json.applicationId }}",
+            "tool": "={{ $json.tool }}",
+            "output": "={{ $json.output }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "applicationId",
+              "displayName": "applicationId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tool",
+              "displayName": "tool",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "output",
+              "displayName": "output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        4624,
+        240
+      ],
+      "id": "d2d81ad8-3ecc-4219-bffc-0625a9da2927",
+      "name": "Call 'WF_Audit_Logger'17"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "bDwWnCE9VvNaN8UB",
+          "mode": "id",
+          "cachedResultUrl": "/workflow/bDwWnCE9VvNaN8UB"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "applicationId": "={{ $json.applicationId }}",
+            "tool": "={{ $json.tool }}",
+            "output": "={{ $json.output }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "applicationId",
+              "displayName": "applicationId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tool",
+              "displayName": "tool",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "output",
+              "displayName": "output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        5232,
+        240
+      ],
+      "id": "f12c6e13-8364-446d-8bc7-84d97bdf4cbe",
+      "name": "Call 'WF_Audit_Logger'18"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst report = input.output.credit_report;\n\nconst dictionary = {\n\n  strengths: {\n\n    ACTIVE: \"Компания имеет действующий статус\",\n\n    COMPANY_OLDER_THAN_3_YEARS:\n      \"Компания осуществляет деятельность более 3 лет\",\n\n    DIRECTOR_PRESENT:\n      \"Сведения о руководителе присутствуют\",\n\n    ADDRESS_PRESENT:\n      \"Юридический адрес указан\",\n\n    OKVED_PRESENT:\n      \"Коды ОКВЭД указаны\",\n\n    NO_COMPLIANCE_ISSUES_FOUND:\n      \"Комплаенс-факторы риска не выявлены\",\n\n    POSITIVE_MEDIA_COVERAGE:\n      \"Обнаружены положительные публикации\",\n\n    INDUSTRY_AWARD_FOUND:\n      \"Обнаружены отраслевые награды или достижения\",\n\n    PUBLIC_RECOGNITION_FOUND:\n      \"Компания имеет публичное признание\",\n\n    REVENUE_PRESENT:\n      \"Финансовая отчетность содержит сведения о выручке\",\n\n    POSITIVE_NET_PROFIT:\n      \"Компания демонстрирует положительную чистую прибыль\",\n\n    ASSETS_GREATER_THAN_LIABILITIES:\n      \"Активы превышают обязательства\",\n\n    LOAN_TO_REVENUE_LOW:\n      \"Кредитная нагрузка относительно выручки низкая\",\n\n    LOAN_SUPPORTED_BY_PROFIT:\n      \"Запрашиваемый кредит поддерживается финансовым результатом компании\"\n\n  },\n\n  risks: {\n\n    COMPANY_YOUNGER_THAN_1_YEAR:\n      \"Компания зарегистрирована менее года назад\",\n\n    COMPANY_1_TO_3_YEARS:\n      \"Компания зарегистрирована менее 3 лет назад\",\n\n    DIRECTOR_MISSING:\n      \"Отсутствуют сведения о руководителе\",\n\n    ADDRESS_MISSING:\n      \"Отсутствуют сведения об адресе\",\n\n    OKVED_MISSING:\n      \"Отсутствуют сведения об ОКВЭД\",\n\n    MASS_ADDRESS:\n      \"Выявлен признак массового адреса\",\n\n    MASS_DIRECTOR:\n      \"Выявлен признак массового руководителя\",\n\n    INVALID_INFORMATION:\n      \"Обнаружены признаки недостоверности сведений\",\n\n    EGRUL_EXCLUSION_RISK:\n      \"Обнаружен риск исключения из ЕГРЮЛ\",\n\n    NEGATIVE_NEWS_FOUND:\n      \"Обнаружены негативные публикации\",\n\n    NEGATIVE_MEDIA_COVERAGE:\n      \"Обнаружено негативное освещение в СМИ\",\n\n    PUBLIC_LITIGATION_MENTIONED:\n      \"Обнаружены упоминания о судебных разбирательствах\",\n\n    PUBLIC_ACCUSATION_FOUND:\n      \"Обнаружены публичные обвинения\",\n\n    NO_FINANCIAL_DATA:\n      \"Финансовые данные отсутствуют\",\n\n    NEGATIVE_NET_PROFIT:\n      \"Компания имеет отрицательную чистую прибыль\",\n\n    LIABILITIES_GREATER_THAN_ASSETS:\n      \"Обязательства превышают активы\",\n\n    LOAN_TO_REVENUE_MODERATE:\n      \"Кредитная нагрузка к выручке находится на умеренном уровне\",\n\n    LOAN_PROFIT_COVERAGE_MODERATE:\n      \"Покрытие кредита прибылью находится на умеренном уровне\",\n\n    NO_PROFIT_SUPPORT:\n      \"Финансовый результат недостаточен для поддержки кредита\",\n\n    LOAN_TO_REVENUE_HIGH:\n      \"Высокая кредитная нагрузка относительно выручки\",\n\n    LOAN_EXCEEDS_REVENUE:\n      \"Размер кредита превышает годовую выручку\",\n\n    LOAN_PROFIT_COVERAGE_WEAK:\n      \"Слабое покрытие кредита прибылью\",\n\n    LIQUIDATING:\n      \"Компания находится в процессе ликвидации\",\n\n    LIQUIDATED:\n      \"Компания ликвидирована\",\n\n    REORGANIZING:\n      \"Компания находится в процессе реорганизации\",\n\n    BANKRUPTCY_INDICATOR:\n      \"Обнаружены признаки банкротства\",\n\n    FRAUD_ALLEGATION_FOUND:\n      \"Обнаружены сведения о возможном мошенничестве\",\n\n    REPUTATIONAL_SCANDAL_FOUND:\n      \"Обнаружены сведения о репутационном скандале\",\n\n    INSUFFICIENT_PUBLIC_INFORMATION:\n      \"Объем публичной информации недостаточен\",\n\n    REVENUE_DATA_MISSING:\n      \"Данные о доходах отсутствуют\"\n  }\n};\n\nconst strengthsRu =\n  (report.strengths || []).map(\n    item => dictionary.strengths[item] || item\n  );\n\nconst risksRu =\n  (report.risks || []).map(\n    item => dictionary.risks[item] || item\n  );\n\nreturn [{\n  json: {\n    output: {\n      strengths_ru: strengthsRu,\n      risks_ru: risksRu\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5472,
+        144
+      ],
+      "id": "0907f23d-7127-4957-bc01-05bcdc85283a",
+      "name": "Dictionary"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\n\nconst titles = {\n  PUBLIC_LITIGATION_MENTIONED: \"Судебные разбирательства\",\n  NEGATIVE_MEDIA_COVERAGE: \"Негативное освещение в СМИ\",\n  NEGATIVE_NEWS_FOUND: \"Негативные публикации\",\n  PUBLIC_ACCUSATION_FOUND: \"Публичные обвинения\",\n  FRAUD_ALLEGATION_FOUND: \"Дела связанные с мошенничеством\",\n  REPUTATIONAL_SCANDAL_FOUND: \"Репутационный скандал\",\n  POSITIVE_MEDIA_COVERAGE: \"Положительное освещение в СМИ\",\n  INDUSTRY_AWARD_FOUND: \"Отраслевые награды\",\n  PUBLIC_RECOGNITION_FOUND: \"Публичное признание\"\n};\n\nconst findings =\n  item.output?.reputation_assessment?.findings || [];\n\nconst evidenceReport = [];\n\nfor (const finding of findings) {\n\n  if (!finding.evidences || finding.evidences.length === 0) {\n    continue;\n  }\n\n  evidenceReport.push({\n    finding_code: finding.reputation_finding,\n\n    finding_title:\n      titles[finding.reputation_finding] ||\n      finding.reputation_finding,\n\n    confidence:\n      finding.confidence_finding || \"UNKNOWN\",\n\n    evidences: finding.evidences.map(e => ({\n      source: e.source || \"\",\n      date: e.date || \"\",\n      quote: e.quote || \"\",\n      url: e.url || \"\"\n    }))\n  });\n}\n\nreturn [\n  {\n    json: {\n      ...item,\n      output: {\n        ...item.output,\n        evidence_report_ru: evidenceReport\n      }\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5472,
+        352
+      ],
+      "id": "622a665e-4616-4290-9d9d-90458e751632",
+      "name": "Report Evidence Builder"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        5712,
+        272
+      ],
+      "id": "54ddfc9f-e3c9-4539-9fde-060fffd7255f",
+      "name": "Merge2"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"applicationId\": \"{{ $json.applicationId }}\",\n  \"tool\": \"13_Client_Report_Builder\",\n  \"output\":{\n\n  \"company_name\": \"{{ $json.output.company_profile.company_name }}\",\n\n  \"decision\": \"{{ $json.output.credit_report.decision }}\",\n\n  \"overall_risk\": \"{{ $json.output.credit_report.overall_risk }}\",\n\n  \"risk_score\": {{ $json.output.credit_report.risk_score }},\n\n  \"policy_decision\": \"{{ $json.output.credit_report.policy_decision }}\",\n\n  \"strengths_ru\": {{ JSON.stringify($json.output.strengths_ru) }},\n\n  \"risks_ru\": {{ JSON.stringify($json.output.risks_ru) }},\n\n  \"evidence_report\": {{ JSON.stringify($json.output.evidence_report_ru || []) }}\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        5888,
+        272
+      ],
+      "id": "afb9cbf8-e463-4ca4-a03f-f78e7ee85845",
+      "name": "Client Report Builder"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "bDwWnCE9VvNaN8UB",
+          "mode": "id",
+          "cachedResultUrl": "/workflow/bDwWnCE9VvNaN8UB"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "applicationId": "={{ $json.applicationId }}",
+            "tool": "={{ $json.tool }}",
+            "output": "={{ $json.output }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "applicationId",
+              "displayName": "applicationId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tool",
+              "displayName": "tool",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "output",
+              "displayName": "output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        6048,
+        272
+      ],
+      "id": "982829ab-d68e-4823-8fb6-f459b362f683",
+      "name": "Call 'WF_Audit_Logger'19"
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = $input.first().json;\nconst item = root.output;\n\nconst strengths = (item.strengths_ru || [])\n  .map(s => `<li>${s}</li>`)\n  .join(\"\");\n\nconst risks = (item.risks_ru || [])\n  .map(s => `<li>${s}</li>`)\n  .join(\"\");\n\nconst evidences = (item.evidence_report || [])\n  .map(section => {\n\n    const cards = (section.evidences || [])\n      .map(e => `\n        <div class=\"evidence\">\n          <b>${e.source || \"\"}</b><br>\n          <small>${e.date || \"\"}</small>\n          <p>${e.quote || \"\"}</p>\n          <a href=\"${e.url || \"#\"}\" target=\"_blank\">\n            Открыть источник\n          </a>\n        </div>\n      `)\n      .join(\"\");\n\n    return `\n      <div class=\"finding\">\n        <h3>${section.finding_title}</h3>\n        <p>Уверенность: ${section.confidence}</p>\n        ${cards}\n      </div>\n    `;\n  })\n  .join(\"\");\n\nconst decisionMap = {\n  APPROVE: \"ПРЕДВАРИТЕЛЬНО ОДОБРЕНО\",\n  REVIEW: \"ТРЕБУЕТСЯ ДОПОЛНИТЕЛЬНОЕ РАССМОТРЕНИЕ\",\n  DECLINE: \"ПРЕДВАРИТЕЛЬНЫЙ ОТКАЗ\"\n};\n\nconst riskMap = {\n  LOW: \"Низкий\",\n  MEDIUM: \"Средний\",\n  HIGH: \"Высокий\"\n};\n\nconst html = `\n<!DOCTYPE html>\n<html lang=\"ru\">\n<head>\n<meta charset=\"UTF-8\">\n\n<style>\n\nbody{\n font-family: Arial, sans-serif;\n max-width:1200px;\n margin:auto;\n padding:40px;\n background:#f7f9fc;\n color:#222;\n}\n\n.card{\n background:white;\n padding:24px;\n border-radius:12px;\n margin-bottom:20px;\n box-shadow:0 2px 8px rgba(0,0,0,0.08);\n}\n\nh1{\n margin-top:0;\n}\n\nul{\n padding-left:20px;\n}\n\n.evidence{\n border-left:4px solid #d0d7e2;\n padding-left:15px;\n margin-bottom:15px;\n}\n\n.status{\n font-size:22px;\n font-weight:bold;\n}\n\n</style>\n</head>\n\n<body>\n\n<div class=\"card\">\n\n<h1>Кредитное заключение</h1>\n\n<p><b>Компания:</b> ${item.company_name}</p>\n\n<p><b>Номер заявки:</b> ${root.applicationId}</p>\n\n<p class=\"status\">\n${decisionMap[item.decision] || item.decision}\n</p>\n\n<p>\n<b>Уровень риска:</b>\n${riskMap[item.overall_risk] || item.overall_risk}\n</p>\n\n<p>\n<b>Риск-скор:</b>\n${item.risk_score}\n</p>\n\n</div>\n\n<div class=\"card\">\n\n<h2>Положительные факторы</h2>\n\n<ul>\n${strengths}\n</ul>\n\n</div>\n\n<div class=\"card\">\n\n<h2>Факторы внимания</h2>\n\n<ul>\n${risks}\n</ul>\n\n</div>\n\n<div class=\"card\">\n\n</div>\n\n<div class=\"card\">\n\n<h2>Подтверждающие материалы</h2>\n\n${evidences}\n\n</div>\n\n</body>\n</html>\n`;\n\nreturn [{\n  json: {\n    html\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6240,
+        272
+      ],
+      "id": "58f3051e-2574-46ad-b4cb-7da8139e5752",
+      "name": "Client HTML Builder"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "credit-application",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -2608,
+        512
+      ],
+      "id": "303d61ca-ae57-4f85-b08c-be3f280e1d2c",
+      "name": "Webhook",
+      "webhookId": "c92dd665-a0f0-4fc8-bd20-c277ecaff38c"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "bDwWnCE9VvNaN8UB",
+          "mode": "id",
+          "cachedResultUrl": "/workflow/bDwWnCE9VvNaN8UB"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "applicationId": "={{ $json.applicationId }}",
+            "tool": "={{ $json.tool }}",
+            "output": "={{ $json.output }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "applicationId",
+              "displayName": "applicationId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tool",
+              "displayName": "tool",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "output",
+              "displayName": "output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -576,
+        432
+      ],
+      "id": "54800745-9bba-4744-ab8b-f2d8a87174c1",
+      "name": "Call 'WF_Audit_Logger'20"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "bDwWnCE9VvNaN8UB",
+          "mode": "id",
+          "cachedResultUrl": "/workflow/bDwWnCE9VvNaN8UB"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "applicationId": "={{ $json.applicationId }}",
+            "tool": "={{ $json.tool }}",
+            "output": "={{ $json.output }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "applicationId",
+              "displayName": "applicationId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tool",
+              "displayName": "tool",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "output",
+              "displayName": "output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -576,
+        624
+      ],
+      "id": "0be75b33-d9c0-426c-98fd-b7ba740f5b34",
+      "name": "Call 'WF_Audit_Logger'21"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "bDwWnCE9VvNaN8UB",
+          "mode": "id",
+          "cachedResultUrl": "/workflow/bDwWnCE9VvNaN8UB"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "applicationId": "={{ $json.applicationId }}",
+            "tool": "={{ $json.tool }}",
+            "output": "={{ $json.output }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "applicationId",
+              "displayName": "applicationId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tool",
+              "displayName": "tool",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "output",
+              "displayName": "output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -176,
+        240
+      ],
+      "id": "339aa933-4bd9-4133-8056-d7fe4df122bb",
+      "name": "Call 'WF_Audit_Logger'22"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  applicationId: {{ $('If - корректность данных').item.json.applicationId }},\n  tool: \"03_Input_Validation_Error\",\n  output: {\n    status: \"error\",\n    errorType: \"INPUT_VALIDATION_ERROR\",\n    errorMessage: \"{{ $('If - корректность данных').item.json.output.errorMessage }}\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1424,
+        640
+      ],
+      "id": "a3af2bfc-ab74-48c0-89f2-001c689cb701",
+      "name": "Edit Fields2"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "bDwWnCE9VvNaN8UB",
+          "mode": "id",
+          "cachedResultUrl": "/workflow/bDwWnCE9VvNaN8UB"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "applicationId": "={{ $json.applicationId }}",
+            "tool": "={{ $json.tool }}",
+            "output": "={{ $json.output }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "applicationId",
+              "displayName": "applicationId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tool",
+              "displayName": "tool",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "output",
+              "displayName": "output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -1200,
+        640
+      ],
+      "id": "3c44baf4-de83-4598-b36b-7c78a84344bd",
+      "name": "Call 'WF_Audit_Logger'23"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json.output || {};\n\nconst report = data.credit_report || {};\nconst explanation = data.decision_explanation || {};\n\nreturn [\n  {\n    json: {\n\n      decision: report.decision || \"\",\n\n      overall_risk: report.overall_risk || \"\",\n\n      risk_score:\n        typeof report.risk_score === \"number\"\n          ? report.risk_score\n          : 0,\n\n      policy_decision:\n        report.policy_decision ||\n        explanation.auto_decision ||\n        \"\",\n\n      policy_rules_triggered:\n        report.policy_rules_triggered ||\n        explanation.triggered_policy_rules ||\n        [],\n\n      strengths:\n        Array.isArray(report.strengths)\n          ? report.strengths\n          : [],\n\n      risks:\n        Array.isArray(report.risks)\n          ? report.risks\n          : []\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4832,
+        240
+      ],
+      "id": "61bcf473-6296-4bca-aa89-ee22c1887d22",
+      "name": "Final Credit Report"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    applicationId: $('Edit Fields3').first().json.applicationId,\n\n    tool: `12_Final_Credit_Report`,\n\n    output: {\n      credit_report: {\n        decision: $('Edit Fields3').first().json.output.credit_report.decision,\n        overall_risk: $input.first().json.overall_risk,\n        risk_score: $input.first().json.risk_score,\n        policy_decision: $input.first().json.policy_decision,\n        policy_rules_triggered: $input.first().json.policy_rules_triggered || [],\n        strengths: $('Edit Fields3').first().json.output.credit_report.strengths || [],\n        risks: $('Edit Fields3').first().json.output.credit_report.risks || []\n      },\n\n      financial_assessment: $('Edit Fields3').first().json.output.financial_assessment || {},\n      credit_assessment: $('Edit Fields3').first().json.output.credit_assessment || {},\n      company_profile: $('Edit Fields3').first().json.output.company_profile || {},\n      registration_assessment: $('Edit Fields3').first().json.output.registration_assessment || {},\n      compliance_assessment: $('Edit Fields3').first().json.output.compliance_assessment || {},\n      reputation_assessment: $('Edit Fields3').first().json.output.reputation_assessment || {},\n      risk_assessment: $('Edit Fields3').first().json.output.risk_assessment || {},\n      policy_assessment: $('Edit Fields3').first().json.output.policy_assessment || {},\n      decision_explanation: $('Edit Fields3').first().json.output.decision_explanation || {}\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5040,
+        240
+      ],
+      "id": "57be24a5-837f-4c58-8bd9-dac316fa7ed7",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json.output || {};\n\nconst registration =\n  data.registration_assessment?.registration_findings || [];\n\nconst compliance =\n  data.compliance_assessment?.compliance_findings || [];\n\nconst reputation =\n  data.reputation_assessment?.reputation_findings || [];\n\nconst financial =\n  data.financial_assessment?.financial_findings || [];\n\nconst credit =\n  data.credit_assessment?.credit_findings || [];\n\nconst allFindings = [\n  ...registration,\n  ...compliance,\n  ...reputation,\n  ...financial,\n  ...credit\n];\n\nconst POSITIVE = new Set([\n  'ACTIVE',\n  'COMPANY_OLDER_THAN_3_YEARS',\n  'DIRECTOR_PRESENT',\n  'ADDRESS_PRESENT',\n  'OKVED_PRESENT',\n\n  'NO_COMPLIANCE_ISSUES_FOUND',\n\n  'POSITIVE_MEDIA_COVERAGE',\n  'INDUSTRY_AWARD_FOUND',\n  'PUBLIC_RECOGNITION_FOUND',\n\n  'REVENUE_PRESENT',\n  'POSITIVE_NET_PROFIT',\n  'ASSETS_GREATER_THAN_LIABILITIES',\n\n  'LOAN_TO_REVENUE_LOW',\n  'LOAN_SUPPORTED_BY_PROFIT'\n]);\n\nconst NEGATIVE = new Set([\n  'COMPANY_YOUNGER_THAN_1_YEAR',\n  'COMPANY_1_TO_3_YEARS',\n  'DIRECTOR_MISSING',\n  'ADDRESS_MISSING',\n  'OKVED_MISSING',\n\n  'LIQUIDATING',\n  'LIQUIDATED',\n\n  'MASS_ADDRESS',\n  'MASS_DIRECTOR',\n  'INVALID_INFORMATION',\n  'EGRUL_EXCLUSION_RISK',\n  'REORGANIZING',\n  'BANKRUPTCY_INDICATOR',\n\n  'NEGATIVE_NEWS_FOUND',\n  'NEGATIVE_MEDIA_COVERAGE',\n  'PUBLIC_LITIGATION_MENTIONED',\n  'PUBLIC_ACCUSATION_FOUND',\n  'REPUTATIONAL_SCANDAL_FOUND',\n\n  'NO_FINANCIAL_DATA',\n  'NEGATIVE_NET_PROFIT',\n  'LIABILITIES_GREATER_THAN_ASSETS',\n\n  'LOAN_TO_REVENUE_MODERATE',\n  'LOAN_PROFIT_COVERAGE_MODERATE',\n  'NO_PROFIT_SUPPORT',\n\n  'LOAN_TO_REVENUE_HIGH',\n  'LOAN_EXCEEDS_REVENUE',\n  'LOAN_PROFIT_COVERAGE_WEAK',\n  'REVENUE_DATA_MISSING'\n]);\n\nconst strengths = [\n  ...new Set(\n    allFindings.filter(f => POSITIVE.has(f))\n  )\n];\n\nconst risks = [\n  ...new Set(\n    allFindings.filter(f => NEGATIVE.has(f))\n  )\n];\n\n\n// FRAUD_ALLEGATION_FOUND special rule\n\nconst reputationDetails =\n  data.reputation_assessment?.findings || [];\n\nconst fraudFinding =\n  reputationDetails.find(\n    x => x.reputation_finding === 'FRAUD_ALLEGATION_FOUND'\n  );\n\nif (fraudFinding) {\n\n  const evidences = fraudFinding.evidences || [];\n\n  const fraudRoles = new Set([\n    'ACCUSED',\n    'INVESTIGATED',\n    'DEFENDANT',\n    'CONVICTED'\n  ]);\n\n  const addFraudRisk =\n    evidences.some(\n      e => fraudRoles.has(e.company_role)\n    );\n\n  if (\n    addFraudRisk &&\n    !risks.includes('FRAUD_ALLEGATION_FOUND')\n  ) {\n    risks.push('FRAUD_ALLEGATION_FOUND');\n  }\n}\n\n\n// INFORMATION INSUFFICIENCY\n\nif (\n  data.reputation_assessment?.information_sufficiency ===\n  'INSUFFICIENT'\n) {\n  risks.push('INSUFFICIENT_PUBLIC_INFORMATION');\n}\n\n\n// remove duplicates again\n\nconst uniqueRisks = [...new Set(risks)];\n\n\n// risk\n\nconst riskScore =\n  data.risk_assessment?.risk_score ?? 0;\n\nconst riskLevel =\n  data.risk_assessment?.risk_level || 'LOW';\n\n\n// policy\n\nconst policyDecision =\n  data.decision_explanation?.auto_decision ||\n  'APPROVE';\n\nconst policyRulesTriggered =\n  data.decision_explanation?.triggered_policy_rules ||\n  [];\n\n\n// SPECIAL RULE\n\nconst onlyOkvedMissing =\n  uniqueRisks.length === 1 &&\n  uniqueRisks[0] === 'OKVED_MISSING' &&\n  data.reputation_assessment?.information_sufficiency ===\n    'SUFFICIENT';\n\n\n// decision\n\nlet decision = 'APPROVE';\n\nif (policyDecision === 'DECLINE') {\n\n  decision = 'DECLINE';\n\n} else if (policyDecision === 'MANUAL_REVIEW') {\n\n  decision = 'REVIEW';\n\n} else if (onlyOkvedMissing) {\n\n  decision = 'APPROVE';\n\n} else {\n\n  if (riskLevel === 'HIGH') {\n    decision = 'DECLINE';\n  }\n  else if (riskLevel === 'MEDIUM') {\n    decision = 'REVIEW';\n  }\n  else {\n    decision = 'APPROVE';\n  }\n\n}\n\nreturn [{\n  json: {\n\n    decision,\n\n    overall_risk: riskLevel,\n\n    risk_score: riskScore,\n\n    policy_decision: policyDecision,\n\n    policy_rules_triggered: policyRulesTriggered,\n\n    strengths,\n\n    risks: uniqueRisks\n\n    \n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4256,
+        240
+      ],
+      "id": "7834411b-1fc0-41e2-8891-1aa8cc92537f",
+      "name": "Credit Committee Chairman"
+    },
+    {
+      "parameters": {
+        "jsCode": "const findings = $input.first().json.findings || [];\n\nconst resultFindings = [];\nconst reputationFindings = [];\n\nlet totalEvidence = 0;\n\nfor (const item of findings) {\n\n  const evidences = item.evidences || [];\n\n  totalEvidence += evidences.length;\n\n  let confidence = 'LOW';\n\n  if (evidences.length >= 3) {\n    confidence = 'HIGH';\n  } else if (evidences.length >= 1) {\n    confidence = 'MEDIUM';\n  }\n\n  resultFindings.push({\n    reputation_finding: item.reputation_finding,\n\n    confidence_finding: confidence,\n\n    evidences: evidences.map(e => ({\n      source: e.source ?? null,\n      quote: e.quote ?? null,\n      date: e.date ?? null,\n      url: e.url ?? null,\n      company_role: e.company_role ?? null,\n      confidence: e.confidence ?? null\n    }))\n  });\n\n  if (evidences.length > 0) {\n    reputationFindings.push(item.reputation_finding);\n  }\n}\n\nlet reputationFindingsFinal = [...new Set(reputationFindings)];\n\nif (reputationFindingsFinal.length === 0) {\n  reputationFindingsFinal = ['NO_REPUTATION_DATA'];\n}\n\nlet searchConfidence = 'LOW';\n\nconst foundSignals =\n  reputationFindingsFinal.includes('NO_REPUTATION_DATA')\n    ? 0\n    : reputationFindingsFinal.length;\n\nif (foundSignals >= 3) {\n  searchConfidence = 'HIGH';\n} else if (foundSignals >= 1) {\n  searchConfidence = 'MEDIUM';\n}\n\nreturn [\n  {\n    json: {\n      reputation_findings: reputationFindingsFinal,\n      search_confidence: searchConfidence,\n      information_sufficiency:\n        totalEvidence > 0 ? 'SUFFICIENT' : 'INSUFFICIENT',\n      findings: resultFindings\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1952,
+        1072
+      ],
+      "id": "39428d62-8f4a-4f07-b771-c7a0d8e8a68c",
+      "name": "Reputation_Evidence_Aggregation"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "If - корректность данных": {
+      "main": [
+        [
+          {
+            "node": "If - корректность данных1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Валидация": {
+      "main": [
+        [
+          {
+            "node": "Call 'WF_Audit_Logger'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - запрос dadata по ИНН": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Company Profile Builder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Обработка не найдена орг. Dadata",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Обработка ошибки Dadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Обработка ошибки Dadata": {
+      "main": [
+        [
+          {
+            "node": "Call 'WF_Audit_Logger'21",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Обработка не найдена орг. Dadata": {
+      "main": [
+        [
+          {
+            "node": "Call 'WF_Audit_Logger'20",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Company Profile Builder": {
+      "main": [
+        [
+          {
+            "node": "Call 'WF_Audit_Logger'3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Call 'WF_Audit_Logger'8",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Risk Score Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields3": {
+      "main": [
+        [
+          {
+            "node": "Call 'WF_Audit_Logger'17",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Call 'WF_Audit_Logger'6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields4": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "Reputation_Evidence_Aggregation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compliance": {
+      "main": [
+        [
+          {
+            "node": "Call 'WF_Audit_Logger'10",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Web Search FRAUD_ALLEGATION_FOUND": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Web Search REPUTATIONAL_SCANDAL": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Web Search NEGATIVE_MEDIA_COVERAGE": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Web Search PUBLIC_LITIGATION": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Web Search POSITIVE_MEDIA_COVERAGE": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "Web Search POSITIVE_MEDIA_COVERAGE1": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 5
+          }
+        ]
+      ]
+    },
+    "Web Search INDUSTRY_AWARD": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 6
+          }
+        ]
+      ]
+    },
+    "Web Search PUBLIC_RECOGNITION": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 7
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Financial Agent AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Financial Agent AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Financial Agent AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Financial Assessment": {
+      "main": [
+        [
+          {
+            "node": "Call 'WF_Audit_Logger'12",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Risk Score Engine": {
+      "main": [
+        [
+          {
+            "node": "Call 'WF_Audit_Logger'13",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Credit Structuring": {
+      "main": [
+        [
+          {
+            "node": "Call 'WF_Audit_Logger'15",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Policy Engine": {
+      "main": [
+        [
+          {
+            "node": "Call 'WF_Audit_Logger'14",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'WF_Audit_Logger'": {
+      "main": [
+        [
+          {
+            "node": "If - корректность данных",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Call 'WF_Audit_Logger'5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'WF_Audit_Logger'3": {
+      "main": [
+        [
+          {
+            "node": "Company age category",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Company age category": {
+      "main": [
+        [
+          {
+            "node": "Call 'WF_Audit_Logger'22",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'WF_Audit_Logger'5": {
+      "main": [
+        [
+          {
+            "node": "Валидация",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'WF_Audit_Logger'6": {
+      "main": [
+        [
+          {
+            "node": "Web Search FRAUD_ALLEGATION_FOUND",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Web Search REPUTATIONAL_SCANDAL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Web Search NEGATIVE_MEDIA_COVERAGE",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Web Search PUBLIC_LITIGATION",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Web Search POSITIVE_MEDIA_COVERAGE",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Web Search POSITIVE_MEDIA_COVERAGE1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Web Search INDUSTRY_AWARD",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Web Search PUBLIC_RECOGNITION",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Compliance",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Registration",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Financial Agent AI Agent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "HTTP Request - запрос dadata по ИНН1": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If - корректность данных1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - запрос dadata по ИНН",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request - запрос dadata по ИНН1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'WF_Audit_Logger'7": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Call 'WF_Audit_Logger'7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'WF_Audit_Logger'8": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 5
+          }
+        ]
+      ]
+    },
+    "Call 'WF_Audit_Logger'10": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "Call 'WF_Audit_Logger'9": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Edit Fields6": {
+      "main": [
+        [
+          {
+            "node": "Call 'WF_Audit_Logger'11",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'WF_Audit_Logger'11": {
+      "main": [
+        [
+          {
+            "node": "Financial Assessment",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Credit Structuring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'WF_Audit_Logger'12": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'WF_Audit_Logger'13": {
+      "main": [
+        [
+          {
+            "node": "Policy Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'WF_Audit_Logger'14": {
+      "main": [
+        [
+          {
+            "node": "Decision Explanation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decision Explanation": {
+      "main": [
+        [
+          {
+            "node": "Call 'WF_Audit_Logger'16",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'WF_Audit_Logger'15": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Call 'WF_Audit_Logger'16": {
+      "main": [
+        [
+          {
+            "node": "Credit Committee Chairman",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registration": {
+      "main": [
+        [
+          {
+            "node": "Call 'WF_Audit_Logger'9",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'WF_Audit_Logger'17": {
+      "main": [
+        [
+          {
+            "node": "Final Credit Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'WF_Audit_Logger'18": {
+      "main": [
+        [
+          {
+            "node": "Dictionary",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Report Evidence Builder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dictionary": {
+      "main": [
+        [
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Report Evidence Builder": {
+      "main": [
+        [
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge2": {
+      "main": [
+        [
+          {
+            "node": "Client Report Builder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Client Report Builder": {
+      "main": [
+        [
+          {
+            "node": "Call 'WF_Audit_Logger'19",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'WF_Audit_Logger'19": {
+      "main": [
+        [
+          {
+            "node": "Client HTML Builder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Client HTML Builder": {
+      "main": [
+        []
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'WF_Audit_Logger'20": {
+      "main": [
+        []
+      ]
+    },
+    "Call 'WF_Audit_Logger'21": {
+      "main": [
+        []
+      ]
+    },
+    "Call 'WF_Audit_Logger'22": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields2": {
+      "main": [
+        [
+          {
+            "node": "Call 'WF_Audit_Logger'23",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Final Credit Report": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Call 'WF_Audit_Logger'18",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Credit Committee Chairman": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reputation_Evidence_Aggregation": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "ab16e7e6-e45c-4cc5-be81-d67db0262370",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a8452c076417803ad0e676b9d95f3c665c1c6c13fd173f329ada28210b877bf1"
+  },
+  "id": "88mAmCPE8syNr7zK",
+  "tags": []
+}

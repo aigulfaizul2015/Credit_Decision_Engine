@@ -1,0 +1,183 @@
+{
+  "name": "WF_Audit_Logger",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "jsonExample",
+        "jsonExample": "{\n  \"applicationId\": \"APP-20250621-0001\",\n  \"tool\":\"01_Application_Input\",\n  \"output\": {}\n}"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "1eda0712-a4e9-48d2-9b8b-03fd32e5f68c",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1jwjiDle2wl4MBbCNCvD8flJX9iC7QoJB-Oez5frsZcE/edit?gid=0#gid=0",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Лист1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1jwjiDle2wl4MBbCNCvD8flJX9iC7QoJB-Oez5frsZcE/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.created_at }}",
+            "Tools": "={{ $json.tool }}",
+            "Data": "={{ $json.output }}",
+            "Application_id": "={{ $json.applicationId }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Application_id",
+              "displayName": "Application_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Tools",
+              "displayName": "Tools",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Data",
+              "displayName": "Data",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        400,
+        0
+      ],
+      "id": "c4b8b577-69f6-4d3e-90cc-e47cbd34cb87",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "xX4715ytiGEUMoxl",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date();\n\nreturn $input.all().map(item => ({\n  json: {\n    applicationId: item.json.applicationId,\n    tool: item.json.tool,\n    created_at: now.toISOString(),\n    output: item.json.output\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "d2d1506f-b5c3-41de-a838-ef33fd9b9c38",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"applicationId\": {{ $('Code in JavaScript').item.json.applicationId }},\n  \"tool\": {{ $('Code in JavaScript').item.json.tool }},\n  \"output\": {{ $('Code in JavaScript').item.json.output }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        608,
+        0
+      ],
+      "id": "eb8d3026-0294-4631-a355-6329414be92f",
+      "name": "Edit Fields"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "1ae67319-ee56-47cb-9537-444fa8a2313e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a8452c076417803ad0e676b9d95f3c665c1c6c13fd173f329ada28210b877bf1"
+  },
+  "id": "bDwWnCE9VvNaN8UB",
+  "tags": []
+}

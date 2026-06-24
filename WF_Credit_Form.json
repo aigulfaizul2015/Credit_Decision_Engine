@@ -1,0 +1,94 @@
+{
+  "name": "WF_Credit_Form",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "credit-form",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        176,
+        0
+      ],
+      "id": "c8cad800-13ec-4e0c-8ffd-9b8a6db376e8",
+      "name": "Webhook",
+      "webhookId": "9ef62f9a-f995-4613-b6c9-00f8103c5ef6"
+    },
+    {
+      "parameters": {
+        "jsCode": "const html = `\n<!DOCTYPE html>\n<html lang=\"ru\">\n\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Atlas Underwriting</title>\n<style>\n\nbody {\n  font-family: Arial, sans-serif;\n  background: #f4f7fb;\n  margin: 0;\n  padding: 40px;\n}\n\n.container {\n  max-width: 700px;\n  margin: auto;\n}\n\n.card {\n  background: white;\n  padding: 30px;\n  border-radius: 16px;\n  box-shadow: 0 4px 20px rgba(0,0,0,.08);\n}\n\nh1 {\n  margin-top: 0;\n  color: #163a70;\n}\n\nh2 {\n  color: #163a70;\n}\n\nlabel {\n  display: block;\n  margin-bottom: 6px;\n  margin-top: 15px;\n  font-weight: bold;\n}\n\ninput {\n  width: 100%;\n  padding: 12px;\n  border: 1px solid #d9dce3;\n  border-radius: 8px;\n  box-sizing: border-box;\n}\n\nbutton {\n  width: 100%;\n  margin-top: 20px;\n  padding: 14px;\n  border: none;\n  border-radius: 10px;\n  background: #1f4fd7;\n  color: white;\n  font-size: 16px;\n  cursor: pointer;\n}\n\nbutton:hover {\n  opacity: 0.9;\n}\n\nbutton:disabled {\n  opacity: .6;\n}\n\n.note {\n  margin-top: 20px;\n  color: #666;\n  font-size: 14px;\n}\n\n.application-id {\n  margin-bottom: 20px;\n  padding: 10px;\n  background: #eef4ff;\n  border-radius: 8px;\n  color: #163a70;\n  font-weight: bold;\n}\n\n.status-box {\n  margin-top: 20px;\n  padding: 15px;\n  background: #eef4ff;\n  border-radius: 10px;\n  font-weight: bold;\n}\n\n.small {\n  margin-top: 10px;\n  color: #666;\n  font-size: 14px;\n}\n\n.success {\n  color: #0f7b0f;\n}\n\n.auto-refresh-info {\n  margin-top: 10px;\n  padding: 8px 12px;\n  background: #fff8e1;\n  border-radius: 8px;\n  color: #7a6000;\n  font-size: 13px;\n  font-weight: normal;\n}\n\n</style>\n</head>\n\n<body>\n\n<div class=\"container\">\n<div class=\"card\">\n\n  <h1>Atlas Underwriting</h1>\n\n  <div class=\"application-id\">\n    Номер заявки будет присвоен после отправки\n  </div>\n\n  <div id=\"formBlock\">\n\n    <p>Система автоматизированного кредитного анализа юридических лиц</p>\n\n    <div id=\"creditForm\">\n\n      <label>ИНН*</label>\n      <input id=\"inn\" type=\"text\">\n\n      <label>КПП</label>\n      <input id=\"kpp\" type=\"text\">\n\n      <label>Сумма кредита (руб.)*</label>\n      <input id=\"loan_amount\" type=\"number\">\n\n      <label>Срок кредита (месяцев)*</label>\n      <input id=\"loan_term\" type=\"number\">\n\n      <button id=\"submitBtn\" type=\"button\" onclick=\"submitForm()\">\n        Отправить заявку\n      </button>\n\n    </div>\n\n    <div class=\"note\">\n      После отправки заявки будет выполнен автоматический анализ компании и сформировано кредитное заключение.\n    </div>\n\n  </div>\n\n  <div id=\"statusBlock\" style=\"display:none\">\n\n    <h2 class=\"success\">&#10003; Заявка принята в обработку</h2>\n\n    <div class=\"application-id\">\n      ID заявки: <span id=\"appId\">—</span>\n    </div>\n\n    <div class=\"status-box\">\n      Текущий этап:\n      <div id=\"currentStatus\">Заявка отправлена</div>\n    </div>\n\n    <div class=\"auto-refresh-info\" id=\"autoRefreshInfo\">\n      &#128260; Статус обновляется автоматически каждые 10 секунд...\n    </div>\n\n    <button\n      id=\"refreshBtn\"\n      type=\"button\"\n      onclick=\"refreshStatus()\"\n    >\n      Обновить статус сейчас\n    </button>\n\n    <button\n      id=\"reportBtn\"\n      type=\"button\"\n      style=\"display:none; background:#0f7b0f;\"\n      onclick=\"renderReport(window.finalReport)\"\n    >\n      Открыть кредитное заключение\n    </button>\n\n    <div id=\"statusDate\" class=\"small\">Последнее обновление: —</div>\n\n    <div id=\"reportContainer\" style=\"display:none; margin-top:30px;\"></div>\n\n  </div>\n\n</div>\n</div>\n\n<script>\n\nvar autoRefreshTimer = null;\n\nfunction generateApplicationId() {\n  return 'APP-' + Date.now() + '-' + Math.random().toString(36).substring(2, 10);\n}\n\nfunction getDisplayStatus(tool) {\n  var map = {\n    '01_Input_Form':                              'Проверка параметров заявки',\n    '02_Input_Validation':                        'Формирование профиля компании',\n    '03_Company_Profile_Builder':                 'Сбор данных компании',\n    '03_DADATA_NOT_FOUND':                        'Компания не найдена в Dadata',\n    '03_DADATA_API_ERROR':                        'Ошибка получения данных из Dadata',\n    '04_Company_Profile_Data_Builder':            'Нормализация данных',\n    '05_Company_Profile_Normalization_Builder':   'Финансовый анализ',\n    '06_Financial_Agent_AI_Agent':                'Оценка финансового состояния',\n    '07_Financial_Assessment':                    'Кредитная оценка',\n    '07_Credit_Assessment':                       'Проверка регистрации',\n    '06_Registration_Assessment':                 'Комплаенс проверка',\n    '06_Compliance_Assessment':                   'Репутационный анализ',\n    '06_FRAUD_ALLEGATION_FOUND':                  'Репутационный анализ',\n    '06_REPUTATIONAL_SCANDAL_FOUND':              'Репутационный анализ',\n    '06_NEGATIVE_MEDIA_COVERAGE':                 'Репутационный анализ',\n    '06_PUBLIC_LITIGATION_MENTIONED':             'Репутационный анализ',\n    '06_PUBLIC_ACCUSATION_FOUND':                 'Репутационный анализ',\n    '06_POSITIVE_MEDIA_COVERAGE':                 'Репутационный анализ',\n    '06_INDUSTRY_AWARD_FOUND':                    'Репутационный анализ',\n    '06_PUBLIC_RECOGNITION_FOUND':                'Агрегация репутационных данных',\n    '08_Reputation_Evidence_Aggregation':         'Оценка рисках',\n    '08_Risk_Assessment':                         'Проверка кредитной политики',\n    '09_Policy_Assessment':                       'Подготовка решения',\n    '10_Decision_Explanation':                    'Кредитный комитет',\n    '11_Credit_Committee_Chairman':               'Формирование кредитного заключения',\n    '12_Final_Credit_Report':                     'Подготовка отчета',\n    '13_Client_Report_Builder':                   'Отчет готов'\n  };\n  return map[tool] || tool || 'Статус неизвестен';\n}\n\nfunction startAutoRefresh() {\n  stopAutoRefresh();\n  autoRefreshTimer = setInterval(function() {\n    refreshStatus();\n  }, 10000);\n}\n\nfunction stopAutoRefresh() {\n  if (autoRefreshTimer !== null) {\n    clearInterval(autoRefreshTimer);\n    autoRefreshTimer = null;\n  }\n}\n\nasync function submitForm() {\n  var inn         = document.getElementById('inn').value;\n  var kpp         = document.getElementById('kpp').value;\n  var loan_amount = document.getElementById('loan_amount').value;\n  var loan_term   = document.getElementById('loan_term').value;\n\n  if (!inn || !loan_amount || !loan_term) {\n    alert('Поля заполнены некорректно. Проверьте ИНН, КПП, сумму и срок кредита.');\n    return;\n  }\n\n  var submitBtn = document.getElementById('submitBtn');\n  submitBtn.disabled = true;\n  submitBtn.innerText = 'Отправка заявки...';\n\n  var applicationId = generateApplicationId();\n\n  var formData = new FormData();\n  formData.append('applicationId', applicationId);\n  formData.append('inn',           inn);\n  formData.append('kpp',           kpp);\n  formData.append('loan_amount',   loan_amount);\n  formData.append('loan_term',     loan_term);\n\n  try {\n    await fetch(\n      'https://n8n-aigul-aigul1992.amvera.io/webhook/credit-application',\n      { method: 'POST', body: formData }\n    );\n\n    document.getElementById('appId').innerText           = applicationId;\n    document.getElementById('formBlock').style.display   = 'none';\n    document.getElementById('statusBlock').style.display = 'block';\n\n    startAutoRefresh();\n\n  } catch (err) {\n    alert('Ошибка отправки заявки');\n    submitBtn.disabled  = false;\n    submitBtn.innerText = 'Отправить заявку';\n  }\n}\n\nasync function refreshStatus() {\n  var applicationId = document.getElementById('appId').innerText;\n  var statusElement = document.getElementById('currentStatus');\n  statusElement.innerText = 'Получение статуса...';\n\n  try {\n    var response = await fetch(\n      'https://n8n-aigul-aigul1992.amvera.io/webhook/application-status',\n      {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json' },\n        body: JSON.stringify({ applicationId: applicationId })\n      }\n    );\n\n    var data = await response.json();\n\n    if (!data.found) {\n      statusElement.innerText = 'Заявка пока не найдена';\n      return;\n    }\n\n    statusElement.innerText = getDisplayStatus(data.tool || data.status);\n\n    var now = new Date().toLocaleTimeString('ru-RU');\n    document.getElementById('statusDate').innerText =\n      'Последнее обновление: ' + (data.date || now);\n\n    if (data.completed) {\n\n      stopAutoRefresh();\n    \n      document.getElementById('refreshBtn')\n        .style.display = 'none';\n    \n      document.getElementById('autoRefreshInfo')\n        .style.display = 'none';\n    \n      if (data.completionType === 'SUCCESS') {\n    \n        window.finalReport = data.report;\n    \n        document.getElementById('reportBtn')\n          .style.display = 'block';\n    \n        document.getElementById('autoRefreshInfo')\n          .innerText = '✓ Анализ завершён';\n    \n      }\n    \n      else if (\n        data.completionType === 'DADATA_NOT_FOUND'\n      ) {\n    \n        statusElement.innerText =\n          'Компания не найдена в Dadata';\n    \n        document.getElementById('autoRefreshInfo')\n          .innerText =\n          '✖ Анализ завершён: компания не найдена';\n    \n      }\n    \n      else if (\n        data.completionType === 'DADATA_API_ERROR'\n      ) {\n    \n        statusElement.innerText =\n          'Ошибка получения данных из Dadata';\n    \n        document.getElementById('autoRefreshInfo')\n          .innerText =\n          '✖ Анализ завершён: ошибка Dadata';\n    \n      }\n      else if (\n        data.completionType === 'VALIDATION_ERROR'\n      ) {\n      \n        statusElement.innerText =\n          (data.report && data.report.errorMessage)\n            ? data.report.errorMessage\n            : 'Ошибка проверки данных';\n      \n        document.getElementById('autoRefreshInfo')\n          .innerText =\n          '✖ Заявка отклонена на этапе проверки';\n      \n      }\n    \n    }\n\n  } catch (err) {\n    statusElement.innerText = 'Ошибка получения статуса';\n  }\n}\n\nfunction renderReport(item) {\n  var decisionMap = {\n    APPROVE: 'ПРЕДВАРИТЕЛЬНО ОДОБРЕНО',\n    REVIEW:  'ТРЕБУЕТСЯ ДОПОЛНИТЕЛЬНОЕ РАССМОТРЕНИЕ',\n    DECLINE: 'ПРЕДВАРИТЕЛЬНЫЙ ОТКАЗ'\n  };\n\n  var riskMap = {\n    LOW:    'Низкий',\n    MEDIUM: 'Средний',\n    HIGH:   'Высокий'\n  };\n\n  var strengths = (item.strengths_ru || [])\n    .map(function(v) { return '<li>' + v + '</li>'; })\n    .join('');\n\n  var risks = (item.risks_ru || [])\n    .map(function(v) { return '<li>' + v + '</li>'; })\n    .join('');\n\n  var evidences = (item.evidence_report || [])\n    .map(function(section) {\n      var cards = (section.evidences || [])\n        .map(function(e) {\n          return (\n            '<div style=\"border-left:4px solid #d0d7e2;padding-left:15px;margin-bottom:15px;\">' +\n              '<b>' + (e.source || '') + '</b><br>' +\n              '<small>' + (e.date || '') + '</small>' +\n              '<p>' + (e.quote || '') + '</p>' +\n              '<a href=\"' + (e.url || '#') + '\" target=\"_blank\">Открыть источник</a>' +\n            '</div>'\n          );\n        })\n        .join('');\n\n      return (\n        '<div style=\"margin-bottom:25px;\">' +\n          '<h3>' + (section.finding_title || '') + '</h3>' +\n          '<p>Уверенность: ' + (section.confidence || '') + '</p>' +\n          cards +\n        '</div>'\n      );\n    })\n    .join('');\n\n  var container = document.getElementById('reportContainer');\n  container.style.display = 'block';\n  container.innerHTML = (\n    '<div class=\"status-box\">' +\n      '<h2>Кредитное заключение</h2>' +\n      '<p><b>Компания:</b> ' + (item.company_name || '') + '</p>' +\n      '<p class=\"success\">' + (decisionMap[item.decision] || item.decision || '') + '</p>' +\n      '<p><b>Уровень риска:</b> ' + (riskMap[item.overall_risk] || item.overall_risk || '') + '</p>' +\n      '<p><b>Риск-скор:</b> ' + (item.risk_score || '') + '</p>' +\n    '</div>' +\n\n    '<div class=\"status-box\">' +\n      '<h3>Положительные факторы</h3>' +\n      '<ul>' + strengths + '</ul>' +\n    '</div>' +\n\n    '<div class=\"status-box\">' +\n      '<h3>Факторы внимания</h3>' +\n      '<ul>' + risks + '</ul>' +\n    '</div>' +\n\n    '<div class=\"status-box\">' +\n      '<h3>Подтверждающие материалы</h3>' +\n      evidences +\n    '</div>'\n  );\n}\n\n<\\/script>\n\n</body>\n</html>\n`;\n\nreturn [{ json: { html } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        0
+      ],
+      "id": "642eaeb5-d2cf-4d37-ad3a-9d3d2e2b402c",
+      "name": "Form HTML Builder"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        544,
+        0
+      ],
+      "id": "d132963c-b9a6-42d2-aaee-b179d4d13ff5",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Form HTML Builder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Form HTML Builder": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "803deb13-7534-4fcf-be32-e14300d5319a",
+  "meta": {
+    "instanceId": "a8452c076417803ad0e676b9d95f3c665c1c6c13fd173f329ada28210b877bf1"
+  },
+  "id": "YlkzKpFebWR3tykV",
+  "tags": []
+}

@@ -1,0 +1,137 @@
+{
+  "name": "WF_Status_API",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "application-status",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -32,
+        0
+      ],
+      "id": "6ada6491-074a-4928-96f0-c0f0c2fea5db",
+      "name": "Webhook",
+      "webhookId": "63d740fa-3cbe-41ae-960e-afc5fdd91455"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1jwjiDle2wl4MBbCNCvD8flJX9iC7QoJB-Oez5frsZcE/edit?gid=0#gid=0",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Лист1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1jwjiDle2wl4MBbCNCvD8flJX9iC7QoJB-Oez5frsZcE/edit#gid=0"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Application_id",
+              "lookupValue": "={{ $json.body.applicationId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        176,
+        0
+      ],
+      "id": "c86b9e1f-e9ea-4805-949f-e524e8ed30bc",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "xX4715ytiGEUMoxl",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        624,
+        0
+      ],
+      "id": "07b69d84-5f57-4616-84f7-720d833ca7b3",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all();\n\nif (!rows.length) {\n  return [{\n    json: {\n      found: false,\n      status: 'Заявка не найдена'\n    }\n  }];\n}\n\nrows.sort(\n  (a, b) =>\n    new Date(b.json.Date) -\n    new Date(a.json.Date)\n);\n\nconst last = rows[0].json;\n\nlet report = null;\n\nif (\n  last.Tools === '13_Client_Report_Builder' &&\n  last.Data\n) {\n  try {\n\n    report =\n      typeof last.Data === 'string'\n        ? JSON.parse(last.Data)\n        : last.Data;\n\n  } catch (e) {}\n}\n\nlet completionType = null;\n\nif (\n  last.Tools === '13_Client_Report_Builder'\n) {\n  completionType = 'SUCCESS';\n}\n\nif (\n  last.Tools === '03_DADATA_NOT_FOUND'\n) {\n  completionType = 'DADATA_NOT_FOUND';\n}\n\nif (\n  last.Tools === '03_DADATA_API_ERROR'\n) {\n  completionType = 'DADATA_API_ERROR';\n}\nif (\n  last.Tools === '03_Input_Validation_Error'\n) {\n\n  completionType = 'VALIDATION_ERROR';\n\n  try {\n\n    report =\n      typeof last.Data === 'string'\n        ? JSON.parse(last.Data)\n        : last.Data;\n\n  } catch (e) {}\n\n}\n\nconst completed =\n  completionType !== null;\n\nreturn [{\n  json: {\n    found: true,\n    completed,\n    completionType,\n    applicationId: last.Application_id,\n    tool: last.Tools,\n    date: last.Date,\n    report\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        384,
+        0
+      ],
+      "id": "2d0743b5-54cd-4505-ab8b-06e1ff825655",
+      "name": "Code in JavaScript1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "8cf36cca-0657-44da-9b26-6f59d8cd76b1",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a8452c076417803ad0e676b9d95f3c665c1c6c13fd173f329ada28210b877bf1"
+  },
+  "id": "oPaPzZIIuQSBPxkc",
+  "tags": []
+}
