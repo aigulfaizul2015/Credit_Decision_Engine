@@ -1,4 +1,4 @@
-# Atlas Underwriting — Automated Credit Analysis System
+# Credit Decision Engine — Automated Credit Analysis System
 
 Система кредитного анализа юридических лиц на базе n8n.  
 Принимает заявку с ИНН компании и параметрами кредита, проводит полный анализ и формирует кредитное заключение.
